@@ -17,6 +17,8 @@ def check_imgur_404(link):
     headers = {
         'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
     }
+    if ";" in link:
+        return False
     # remove .jpg from the link
     link = link.replace(".jpg", "")
     link = link.replace(".png", "")
@@ -39,7 +41,6 @@ def check_imgur_404(link):
         print(link, "is a 404 image")
         return True
     else:
-        #print(link, "is not a 404 image")
         return False
 
 op = mrcb.Overpass()
