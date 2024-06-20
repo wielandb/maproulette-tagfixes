@@ -36,6 +36,8 @@ def check_imgur_404(link):
             print("Connection error, retrying")
             print(link)
             sleep(10)
+        except (requests.exceptions.InvalidSchema, requests.exceptions.MissingSchema):
+            return False
     print(ans.status_code)
     if "error/404" in ans.url:
         print(link, "is a 404 image")
