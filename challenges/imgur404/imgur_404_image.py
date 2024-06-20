@@ -1,5 +1,6 @@
 import requests
 from time import sleep
+import random
 import sys
 sys.path.append('../../shared')
 import challenge_builder as mrcb

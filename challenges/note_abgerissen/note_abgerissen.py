@@ -14,7 +14,7 @@ elements = op.getElementsFromQuery(
     """
 [out:json][timeout:250];
 area(id:3600051477)->.searchArea;
-nwr["note"~"abgerissen"](area.searchArea);
+nwr["note"~"bgerissen"](area.searchArea);
 out tags center;
     """
 )
