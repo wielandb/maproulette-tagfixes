@@ -7,7 +7,7 @@ import random
 
 def checkIsForSeniors(tags):
     if "name" in tags:
-        if "senior" in tags["name"]:
+        if "senior" in tags["name"].lower():
             return True
         if "altenpfleg" in tags["name"].lower():
             return True

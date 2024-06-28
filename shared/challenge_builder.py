@@ -3,6 +3,15 @@ from dataclasses import dataclass, field
 from typing import List, Dict
 import requests
 
+def TagsAsMdTable(tags):
+    # This function takes a dict of tags and returns a markdown table with the tags
+    # The first column is the key and the second column is the value
+    table = "| Key | Value |\n| --- | --- |\n"
+    for key, value in tags.items():
+        table += f"| {key} | {value} |\n"
+    return table
+
+
 @dataclass
 class GeoFeature:
     # This is an abstraction of a GeoJSON Feature
