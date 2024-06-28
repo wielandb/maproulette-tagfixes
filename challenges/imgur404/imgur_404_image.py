@@ -60,6 +60,10 @@ random.shuffle(elements)
 
 for element in tqdm(elements):
     if check_imgur_404(element["tags"]["image"]):
+        tagChanges = {"image":None}
+        if "source" in element["tags"]:
+            if "anasonic" in element["tags"]["source"]:
+                tagChanges["source"] = None
         geom = mrcb.getElementCenterPoint(element)
         mainFeature = mrcb.GeoFeature.withId(
             element["type"],
@@ -70,7 +74,7 @@ for element in tqdm(elements):
         cooperativeWork = mrcb.TagFix(
             element["type"],
             element["id"],
-            {"image":None}
+            tagChanges
         )
         t = mrcb.Task(
             mainFeature,
