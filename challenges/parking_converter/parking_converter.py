@@ -366,6 +366,10 @@ def convert_base_parking_tags(tags):
                 tagChanges["parking:both:markings"] = "yes"
                 tagChanges["parking:lane:both:marked"] = None
     # Other things like conditions
+    ## Generic yes in base tag needed
+    for side in ["right", "left", "both"]:
+        if any([True for key in tags if f"parking:{side}" in key]) and not "parking:"+side in tags:
+            tagChanges["parking:"+side] = "yes"
     ## Free parking
     if "parking:condition:right" in tags and tags["parking:condition:right"] == "free":
         tagChanges["parking:right:fee"] = "no"
