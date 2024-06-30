@@ -1,0 +1,117 @@
+"""
+Parallel on_street
+{"parking:lane:right":"parallel", "parking:lane:right:parallel":"on_street"} -> {"parking:right":"on_street", "parking:right:orientation":"parallel"}
+{"parking:lane:left":"parallel", "parking:lane:left:parallel":"on_street"} -> {"parking:left":"on_street", "parking:left:orientation":"parallel"}
+{"parking:lane:both":"parallel", "parking:lane:both:parallel":"on_street"} -> {"parking:both":"on_street", "parking:both:orientation":"parallel"}
+
+Parallel half_on_kerb
+{"parking:lane:right":"parallel", "parking:lane:right:parallel":"half_on_kerb"} -> {"parking:right":"half_on_kerb", "parking:right:orientation":"parallel"}
+{"parking:lane:left":"parallel", "parking:lane:left:parallel":"half_on_kerb"} -> {"parking:left":"half_on_kerb", "parking:left:orientation":"parallel"}
+{"parking:lane:both":"parallel", "parking:lane:both:parallel":"half_on_kerb"} -> {"parking:both":"half_on_kerb", "parking:both:orientation":"parallel"}
+
+Parallel on_kerb
+{"parking:lane:right":"parallel", "parking:lane:right:parallel":"on_kerb"} -> {"parking:right":"on_kerb", "parking:right:orientation":"parallel"}
+{"parking:lane:left":"parallel", "parking:lane:left:parallel":"on_kerb"} -> {"parking:left":"on_kerb", "parking:left:orientation":"parallel"}
+{"parking:lane:both":"parallel", "parking:lane:both:parallel":"on_kerb"} -> {"parking:both":"on_kerb", "parking:both:orientation":"parallel"}
+
+Parallel street_side
+{"parking:lane:right":"parallel", "parking:lane:right:parallel":"street_side"} -> {"parking:right":"street_side", "parking:right:orientation":"parallel"}
+{"parking:lane:left":"parallel", "parking:lane:left:parallel":"street_side"} -> {"parking:left":"street_side", "parking:left:orientation":"parallel"}
+{"parking:lane:both":"parallel", "parking:lane:both:parallel":"street_side"} -> {"parking:both":"street_side", "parking:both:orientation":"parallel"}
+
+diagonal on_street
+{"parking:lane:right":"diagonal", "parking:lane:right:diagonal":"on_street"} -> {"parking:right":"on_street", "parking:right:orientation":"diagonal"}
+{"parking:lane:left":"diagonal", "parking:lane:left:diagonal":"on_street"} -> {"parking:left":"on_street", "parking:left:orientation":"diagonal"}
+{"parking:lane:both":"diagonal", "parking:lane:both:diagonal":"on_street"} -> {"parking:both":"on_street", "parking:both:orientation":"diagonal"}
+
+diagonal half_on_kerb
+{"parking:lane:right":"diagonal", "parking:lane:right:diagonal":"half_on_kerb"} -> {"parking:right":"half_on_kerb", "parking:right:orientation":"diagonal"}
+{"parking:lane:left":"diagonal", "parking:lane:left:diagonal":"half_on_kerb"} -> {"parking:left":"half_on_kerb", "parking:left:orientation":"diagonal"}
+{"parking:lane:both":"diagonal", "parking:lane:both:diagonal":"half_on_kerb"} -> {"parking:both":"half_on_kerb", "parking:both:orientation":"diagonal"}
+
+diagonal on_kerb
+{"parking:lane:right":"diagonal", "parking:lane:right:diagonal":"on_kerb"} -> {"parking:right":"on_kerb", "parking:right:orientation":"diagonal"}
+{"parking:lane:left":"diagonal", "parking:lane:left:diagonal":"on_kerb"} -> {"parking:left":"on_kerb", "parking:left:orientation":"diagonal"}
+{"parking:lane:both":"diagonal", "parking:lane:both:diagonal":"on_kerb"} -> {"parking:both":"on_kerb", "parking:both:orientation":"diagonal"}
+
+diagonal street_side
+{"parking:lane:right":"diagonal", "parking:lane:right:diagonal":"street_side"} -> {"parking:right":"street_side", "parking:right:orientation":"diagonal"}
+{"parking:lane:left":"diagonal", "parking:lane:left:diagonal":"street_side"} -> {"parking:left":"street_side", "parking:left:orientation":"diagonal"}
+{"parking:lane:both":"diagonal", "parking:lane:both:diagonal":"street_side"} -> {"parking:both":"street_side", "parking:both:orientation":"diagonal"}
+
+perpendicular on_street
+{"parking:lane:right":"perpendicular", "parking:lane:right:perpendicular":"on_street"} -> {"parking:right":"on_street", "parking:right:orientation":"perpendicular"}
+{"parking:lane:left":"perpendicular", "parking:lane:left:perpendicular":"on_street"} -> {"parking:left":"on_street", "parking:left:orientation":"perpendicular"}
+{"parking:lane:both":"perpendicular", "parking:lane:both:perpendicular":"on_street"} -> {"parking:both":"on_street", "parking:both:orientation":"perpendicular"}
+
+perpendicular half_on_kerb
+{"parking:lane:right":"perpendicular", "parking:lane:right:perpendicular":"half_on_kerb"} -> {"parking:right":"half_on_kerb", "parking:right:orientation":"perpendicular"}
+{"parking:lane:left":"perpendicular", "parking:lane:left:perpendicular":"half_on_kerb"} -> {"parking:left":"half_on_kerb", "parking:left:orientation":"perpendicular"}
+{"parking:lane:both":"perpendicular", "parking:lane:both:perpendicular":"half_on_kerb"} -> {"parking:both":"half_on_kerb", "parking:both:orientation":"perpendicular"}
+
+perpendicular on_kerb
+{"parking:lane:right":"perpendicular", "parking:lane:right:perpendicular":"on_kerb"} -> {"parking:right":"on_kerb", "parking:right:orientation":"perpendicular"}
+{"parking:lane:left":"perpendicular", "parking:lane:left:perpendicular":"on_kerb"} -> {"parking:left":"on_kerb", "parking:left:orientation":"perpendicular"}
+{"parking:lane:both":"perpendicular", "parking:lane:both:perpendicular":"on_kerb"} -> {"parking:both":"on_kerb", "parking:both:orientation":"perpendicular"}
+
+perpendicular street_side
+{"parking:lane:right":"perpendicular", "parking:lane:right:perpendicular":"street_side"} -> {"parking:right":"street_side", "parking:right:orientation":"perpendicular"}
+{"parking:lane:left":"perpendicular", "parking:lane:left:perpendicular":"street_side"} -> {"parking:left":"street_side", "parking:left:orientation":"perpendicular"}
+{"parking:lane:both":"perpendicular", "parking:lane:both:perpendicular":"street_side"} -> {"parking:both":"street_side", "parking:both:orientation":"perpendicular"}
+
+perpendicular painted_area_only (becomes "on_street" with additional tag "parking:SIDE:markings=yes")
+{"parking:lane:right":"perpendicular", "parking:lane:right:perpendicular":"painted_area_only"} -> {"parking:right":"on_street", "parking:right:orientation":"perpendicular", "parking:right:markings":"yes"}
+{"parking:lane:left":"perpendicular", "parking:lane:left:perpendicular":"painted_area_only"} -> {"parking:left":"on_street", "parking:left:orientation":"perpendicular", "parking:left:markings":"yes"}
+{"parking:lane:both":"perpendicular", "parking:lane:both:perpendicular":"painted_area_only"} -> {"parking:both":"on_street", "parking:both:orientation":"perpendicular", "parking:both:markings":"yes"}
+
+diagnoal painted_area_only (becomes "on_street" with additional tag "parking:SIDE:markings=yes")
+{"parking:lane:right":"diagonal", "parking:lane:right:diagonal":"painted_area_only"} -> {"parking:right":"on_street", "parking:right:orientation":"diagonal", "parking:right:markings":"yes"}
+{"parking:lane:left":"diagonal", "parking:lane:left:diagonal":"painted_area_only"} -> {"parking:left":"on_street", "parking:left:orientation":"diagonal", "parking:left:markings":"yes"}
+{"parking:lane:both":"diagonal", "parking:lane:both:diagonal":"painted_area_only"} -> {"parking:both":"on_street", "parking:both:orientation":"diagonal", "parking:both:markings":"yes"}
+
+parallel painted_area_only (becomes "on_street" with additional tag "parking:SIDE:markings=yes")
+{"parking:lane:right":"parallel", "parking:lane:right:parallel":"painted_area_only"} -> {"parking:right":"on_street", "parking:right:orientation":"parallel", "parking:right:markings":"yes"}
+{"parking:lane:left":"parallel", "parking:lane:left:parallel":"painted_area_only"} -> {"parking:left":"on_street", "parking:left:orientation":"parallel", "parking:left:markings":"yes"}
+{"parking:lane:both":"parallel", "parking:lane:both:parallel":"painted_area_only"} -> {"parking:both":"on_street", "parking:both:orientation":"parallel", "parking:both:markings":"yes"}
+
+no
+{"parking:lane:right":"no"} -> {"parking:right":"no"}
+{"parking:lane:left":"no"} -> {"parking:left":"no"}
+{"parking:lane:both":"no"} -> {"parking:both":"no"}
+
+no_parking, no_standing and no_stopping (becomes "no" with additional tag "parking:SIDE:restriction=no_parking" or "no_stopping")
+{"parking:lane:right":"no_parking" -> {"parking:right":"no", "parking:right:restriction":"no_parking"}
+{"parking:lane:left":"no_parking" -> {"parking:left":"no", "parking:left:restriction":"no_parking"}
+{"parking:lane:both":"no_parking" -> {"parking:both":"no", "parking:both:restriction":"no_parking"}
+{"parking:lane:right":"no_stopping" -> {"parking:right":"no", "parking:right:restriction":"no_stopping"}
+{"parking:lane:left":"no_stopping" -> {"parking:left":"no", "parking:left:restriction":"no_stopping"}
+{"parking:lane:both":"no_stopping" -> {"parking:both":"no", "parking:both:restriction":"no_stopping"}
+{"parking:lane:right":"no_standing" -> {"parking:right":"no", "parking:right:restriction":"no_standing"}
+{"parking:lane:left":"no_standing" -> {"parking:left":"no", "parking:left:restriction":"no_standing"}
+{"parking:lane:both":"no_standing" -> {"parking:both":"no", "parking:both:restriction":"no_standing"}
+
+
+separate
+{"parking:lane:right":"separate"} -> {"parking:right":"separate"}
+{"parking:lane:left":"separate"} -> {"parking:left":"separate"}
+{"parking:lane:both":"separate"} -> {"parking:both":"separate"}
+
+marked (becomes "parking:SIDE:markings=yes" as we do not know anything else)
+{"parking:lane:right":"marked"} -> {"parking:right:markings":"yes"}
+{"parking:lane:left":"marked"} -> {"parking:left:markings":"yes"}
+{"parking:lane:both":"marked"} -> {"parking:both:markings":"yes"}
+{"parking:lane:right":"marked", "parking:lane:right:marked":"on_street"} -> {"parking:right":"on_street", "parking:right:markings":"yes"}
+{"parking:lane:left":"marked", "parking:lane:left:marked":"on_street"} -> {"parking:left":"on_street", "parking:left:markings":"yes"}
+{"parking:lane:both":"marked", "parking:lane:both:marked":"on_street"} -> {"parking:both":"on_street", "parking:both:markings":"yes"}
+{"parking:lane:right":"marked", "parking:lane:right:marked":"half_on_kerb"} -> {"parking:right":"half_on_kerb", "parking:right:markings":"yes"
+{"parking:lane:left":"marked", "parking:lane:left:marked":"half_on_kerb"} -> {"parking:left":"half_on_kerb", "parking:left:markings":"yes"
+{"parking:lane:both":"marked", "parking:lane:both:marked":"half_on_kerb"} -> {"parking:both":"half_on_kerb", "parking:both:markings":"yes"
+{"parking:lane:right":"marked", "parking:lane:right:marked":"on_kerb"} -> {"parking:right":"on_kerb", "parking:right:markings":"yes"
+{"parking:lane:left":"marked", "parking:lane:left:marked":"on_kerb"} -> {"parking:left":"on_kerb", "parking:left:markings":"yes"
+{"parking:lane:both":"marked", "parking:lane:both:marked":"on_kerb"} -> {"parking:both":"on_kerb", "parking:both:markings":"yes"
+{"parking:lane:right":"marked", "parking:lane:right:marked":"street_side"} -> {"parking:right":"street_side", "parking:right:markings":"yes"
+{"parking:lane:left":"marked", "parking:lane:left:marked":"street_side"} -> {"parking:left":"street_side", "parking:left:markings":"yes"
+{"parking:lane:both":"marked", "parking:lane:both:marked":"street_side"} -> {"parking:both":"street_side", "parking:both:markings":"yes"
+
+
+"""
