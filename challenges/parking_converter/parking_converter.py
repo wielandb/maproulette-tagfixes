@@ -14,6 +14,7 @@ Check the proposed tags and if they seem logical, you can accept them.
 
 MSG_INCOMPLETE_1 = """
 **⚠️ Incomplete conversion! Please edit manually!**
+
 ❗ The street parking tags for this side could not all be converted to the new format. There are still tags left that contain "parking" in some way.
 The following tags could not be converted:
 """
