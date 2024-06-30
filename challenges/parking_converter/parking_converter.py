@@ -449,4 +449,6 @@ for element in tqdm(elements):
 
     challenge.addTask(t)
 
+challenge.cap()
+
 challenge.saveToFile("parking_converter.json")

@@ -127,6 +127,11 @@ class Challenge:
                 f.write('\x1E')
                 json.dump(task.to_dict(), f, ensure_ascii=False)
                 f.write('\n')
+    
+    def cap():
+        # Makes sure that the number of tasks is no more than 50000 (drops everything beyond that)
+        if len(self.tasks) > 50000:
+            self.tasks = self.tasks[:50000]
 
 class Overpass:
     def __init__(self):
