@@ -55,6 +55,7 @@ def convert_base_parking_tags(tags):
                     tagChanges["parking:lane:right:parallel"] = None
                 elif tags["parking:lane:right:parallel"] == "marked":
                     tagChanges["parking:right:markings"] = "yes"
+                    tagChanges["parking:right"] = "yes" # Set the generic "yes" so that it's noted that you can obviously park there, but its unclear how
                     tagChanges["parking:lane:right:parallel"] = None
         elif tags["parking:lane:right"] == "diagonal":
             tagChanges["parking:right:orientation"] = "diagonal"
@@ -78,6 +79,7 @@ def convert_base_parking_tags(tags):
                     tagChanges["parking:lane:right:diagonal"] = None
                 elif tags["parking:lane:right:diagonal"] == "marked":
                     tagChanges["parking:right:markings"] = "yes"
+                    tagChanges["parking:right"] = "yes" # Set the generic "yes" so that it's noted that you can obviously park there, but its unclear how
                     tagChanges["parking:lane:right:diagonal"] = None
         elif tags["parking:lane:right"] == "perpendicular":
             tagChanges["parking:right:orientation"] = "perpendicular"
@@ -101,6 +103,7 @@ def convert_base_parking_tags(tags):
                     tagChanges["parking:lane:right:perpendicular"] = None
                 elif tags["parking:lane:right:perpendicular"] == "marked":
                     tagChanges["parking:right:markings"] = "yes"
+                    tagChanges["parking:right"] = "yes" # Set the generic "yes" so that it's noted that you can obviously park there, but its unclear how
                     tagChanges["parking:lane:right:perpendicular"] = None
         elif tags["parking:lane:right"] == "no":
             tagChanges["parking:right"] = "no"
@@ -164,6 +167,7 @@ def convert_base_parking_tags(tags):
                     tagChanges["parking:lane:left:parallel"] = None
                 elif tags["parking:lane:left:parallel"] == "marked":
                     tagChanges["parking:left:markings"] = "yes"
+                    tagChanges["parking:left"] = "yes" # Set the generic "yes" so that it's noted that you can obviously park there, but its unclear how
                     tagChanges["parking:lane:left:parallel"] = None
         elif tags["parking:lane:left"] == "diagonal":
             tagChanges["parking:left:orientation"] = "diagonal"
@@ -187,6 +191,7 @@ def convert_base_parking_tags(tags):
                     tagChanges["parking:lane:left:diagonal"] = None
                 elif tags["parking:lane:left:diagonal"] == "marked":
                     tagChanges["parking:left:markings"] = "yes"
+                    tagChanges["parking:left"] = "yes" # Set the generic "yes" so that it's noted that you can obviously park there, but its unclear how
                     tagChanges["parking:lane:left:diagonal"] = None
         elif tags["parking:lane:left"] == "perpendicular":
             tagChanges["parking:left:orientation"] = "perpendicular"
@@ -210,6 +215,7 @@ def convert_base_parking_tags(tags):
                     tagChanges["parking:lane:left:perpendicular"] = None
                 elif tags["parking:lane:left:perpendicular"] == "marked":
                     tagChanges["parking:left:markings"] = "yes"
+                    tagChanges["parking:left"] = "yes" # Set the generic "yes" so that it's noted that you can obviously park there, but its unclear how
                     tagChanges["parking:lane:left:perpendicular"] = None
         elif tags["parking:lane:left"] == "no":
             tagChanges["parking:left"] = "no"
@@ -231,6 +237,7 @@ def convert_base_parking_tags(tags):
             tagChanges["parking:lane:left"] = None
         elif tags["parking:lane:left"] == "marked":
             tagChanges["parking:left:markings"] = "yes"
+            tagChanges["parking:left"] = "yes" # Set the generic "yes" so that it's noted that you can obviously park there, but its unclear how
             tagChanges["parking:lane:left"] = None
         elif tags["parking:lane:left"] == "marked" and "parking:lane:left:marked" in tags:
             if tags["parking:lane:left:marked"] == "on_street":
@@ -368,6 +375,32 @@ def convert_base_parking_tags(tags):
         tagChanges["parking:condition:left"] = None
     if "parking:condition:both" in tags and tags["parking:condition:both"] == "free":
         tagChanges["parking:both:fee"] = "no"
+        tagChanges["parking:condition:both"] = None
+    ## condition: no_parking
+    if "parking:condition:right" in tags and tags["parking:condition:right"] == "no_parking":
+        tagChanges["parking:right"] = "no"
+        tagChanges["parking:right:restriction"] = "no_parking"
+        tagChanges["parking:condition:right"] = None
+    if "parking:condition:left" in tags and tags["parking:condition:left"] == "no_parking":
+        tagChanges["parking:left"] = "no"
+        tagChanges["parking:left:restriction"] = "no_parking"
+        tagChanges["parking:condition:left"] = None
+    if "parking:condition:both" in tags and tags["parking:condition:both"] == "no_parking":
+        tagChanges["parking:both"] = "no"
+        tagChanges["parking:both:restriction"] = "no_parking"
+        tagChanges["parking:condition:both"] = None
+    ## condition: no_stopping
+    if "parking:condition:right" in tags and tags["parking:condition:right"] == "no_stopping":
+        tagChanges["parking:right"] = "no"
+        tagChanges["parking:right:restriction"] = "no_stopping"
+        tagChanges["parking:condition:right"] = None
+    if "parking:condition:left" in tags and tags["parking:condition:left"] == "no_stopping":
+        tagChanges["parking:left"] = "no"
+        tagChanges["parking:left:restriction"] = "no_stopping"
+        tagChanges["parking:condition:left"] = None
+    if "parking:condition:both" in tags and tags["parking:condition:both"] == "no_stopping":
+        tagChanges["parking:both"] = "no"
+        tagChanges["parking:both:restriction"] = "no_stopping"
         tagChanges["parking:condition:both"] = None
     return tagChanges
 
