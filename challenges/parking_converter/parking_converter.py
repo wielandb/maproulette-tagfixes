@@ -412,6 +412,7 @@ for element in tqdm(elements):
     # In the element, element["geometry"] is a dict of {"lat": float, "lon": float} for each node in the way
     # Convert this into a list of [lon, lat] pairs
     geom = [[node["lon"], node["lat"]] for node in element["geometry"]]
+    # geom = mrcb.getElementCenterPoint(element)
     dd = convert_base_parking_tags(element["tags"])   
 
     # Only provide cooperative work if there are no old parking tags left
