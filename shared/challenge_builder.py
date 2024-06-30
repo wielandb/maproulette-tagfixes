@@ -128,7 +128,7 @@ class Challenge:
                 json.dump(task.to_dict(), f, ensure_ascii=False)
                 f.write('\n')
     
-    def cap():
+    def cap(self):
         # Makes sure that the number of tasks is no more than 50000 (drops everything beyond that)
         if len(self.tasks) > 50000:
             self.tasks = self.tasks[:50000]
