@@ -1,2 +1,3 @@
 
 *.pyc
+/challenges/stopsign-directions/.stopsignvenv
