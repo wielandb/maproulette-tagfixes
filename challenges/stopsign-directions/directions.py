@@ -91,6 +91,8 @@ class OSMDataHandler:
 
     def discardWayForTags(self, tags):
         # Determines if a way should be discarded based on its tags
+        if not "highway" in tags:
+            return True
         if "oneway" in tags and (tags["oneway"] == "yes" or tags["oneway"] == "-1"):
             for tag in tags:
                 if "oneway:" in tag and tags[tag] == "no":
@@ -102,16 +104,17 @@ stop_give_way_sign_direction_challenge = mrcb.Challenge()
 #stop_give_way_sign_direction_challenge.loadFromFile("stop_give_way_sign_direction_challenge.json")
 
 INSTRUCTIONS = """
+(Klappe dieses Feld auf, um die Visualisierung zu sehen!)
+![](IMAGE_URL_PLACEHOLDER)
+Ist die Richtung korrekt?
+
 Für dieses SIGNTYPEPLACEHOLDER gibt es keine Angabe darüber, in welche Richtung es im Verhältnis zur Verlaufsrichtung des Weges zeigt.
 Mit einem simplen Algorithmus konnte ein wahrscheinlicher Wert ermittelt werden.
 Der vorgeschlagene Wert ist in diesem Fall: `direction=DIRECTION_VALUE_PLACEHOLDER`.
 Dieser wird auf dem gezeigten Bild visualisiert. Bitte überprüfe, ob die Richtung korrekt ist.
 Wenn ja, klicke auf "JA". Ansonsten klicke auf "NEIN", auf "ÜBERSPRINGEN" oder passe die Richtung an und klicke dann "JA".
-Hier ist das Bild:
 
-![](IMAGE_URL_PLACEHOLDER)
-
-Ist die Richtung korrekt?"""
+"""
 
 def addToChallenge(data):
     global stop_give_way_sign_direction_challenge
