@@ -136,7 +136,6 @@ def addToChallenge(data):
         cooperativeWork=cooperativeWork
     )
     stop_give_way_sign_direction_challenge.addTask(t)
-    stop_give_way_sign_direction_challenge.saveToFile("stop_give_way_sign_direction_challenge.json")
 
 
 import requests, os, json
@@ -223,7 +222,7 @@ for way in tqdm(ways):
         addToChallenge(toadddata)
 
 
-
+stop_give_way_sign_direction_challenge.saveToFile("stop_give_way_sign_direction_challenge.json")
 
 
 
