@@ -12,6 +12,10 @@ class OSMDataHandler:
     def __init__(self, json_data):
         self.data = json.loads(json_data)
         self.elements = self.data.get("elements", [])
+        # Create a dictionary for the ways for faster access
+        self.ways = {way["id"]: way for way in self.get_ways()}
+        # Create a dictionary for the nodes for faster access
+        self.nodes = {node["id"]: node for node in self.get_nodes()}
     
     def get_nodes(self):
         return [element for element in self.elements if element["type"] == "node"]
@@ -20,37 +24,42 @@ class OSMDataHandler:
         return [element for element in self.elements if element["type"] == "way"]
     
     def find_node_by_id(self, node_id):
-        return next((node for node in self.get_nodes() if node["id"] == node_id), None)
+        return self.nodes.get(node_id, None)
     
     def find_way_by_id(self, way_id):
-        return next((way for way in self.get_ways() if way["id"] == way_id), None)
+        return self.ways.get(way_id, None)
 
-    def determine_give_way_direction(self, give_way_node_id):
-        for way in self.get_ways():
-            if give_way_node_id in way["nodes"]:
-                node_ids = way["nodes"]
-                give_way_index = node_ids.index(give_way_node_id)
-                distance_to_start = give_way_index
-                distance_to_end = len(node_ids) - 1 - give_way_index
-                return "backward" if distance_to_start < distance_to_end else "forward"
+    def determine_give_way_direction(self, give_way_node_id, way_id):
+        way = self.find_way_by_id(way_id)
+        if give_way_node_id in way["nodes"]:
+            node_ids = way["nodes"]
+            give_way_index = node_ids.index(give_way_node_id)
+            distance_to_start = give_way_index
+            distance_to_end = len(node_ids) - 1 - give_way_index
+            return "backward" if distance_to_start < distance_to_end else "forward"
         raise ValueError("Given node ID not found in any way.")
-    
-    def calculate_rotation_angle(self, give_way_node_id):
-        nodes = {node["id"]: (node["lat"], node["lon"]) for node in self.get_nodes()}
-        for way in self.get_ways():
-            if give_way_node_id in way["nodes"]:
-                node_ids = way["nodes"]
-                give_way_index = node_ids.index(give_way_node_id)
-                prev_node_id = node_ids[give_way_index - 1] if give_way_index > 0 else node_ids[give_way_index + 1]
-                lat1, lon1 = nodes[prev_node_id]
-                lat2, lon2 = nodes[give_way_node_id]
-                angle = math.degrees(math.atan2(lon2 - lon1, lat2 - lat1))
-                direction = self.determine_give_way_direction(give_way_node_id)
-                if direction == "backward":
-                    angle = (angle + 180) % 360
-                if angle < 0:
-                    angle += 360
-                return angle
+
+    def calculate_rotation_angle(self, give_way_node_id, way_id):
+        way = self.find_way_by_id(way_id)
+        if give_way_node_id in way["nodes"]:
+            node_ids = way["nodes"]
+            # Get all the node elements, but only for the nodes that are part of the way
+            nodes = {}
+            for node_id in node_ids:
+                node = self.find_node_by_id(node_id)
+                if node:
+                    nodes[node_id] = (node["lat"], node["lon"])
+            give_way_index = node_ids.index(give_way_node_id)
+            prev_node_id = node_ids[give_way_index - 1] if give_way_index > 0 else node_ids[give_way_index + 1]
+            lat1, lon1 = nodes[prev_node_id]
+            lat2, lon2 = nodes[give_way_node_id]
+            angle = math.degrees(math.atan2(lon2 - lon1, lat2 - lat1))
+            direction = self.determine_give_way_direction(give_way_node_id, way_id)
+            if direction == "backward":
+                angle = (angle + 180) % 360
+            if angle < 0:
+                angle += 360
+            return angle
         raise ValueError("Given node ID not found in any way.")
     
     def get_give_way_nodes(self, way_id):
@@ -130,7 +139,7 @@ def addToChallenge(data):
     mainFeature = mrcb.GeoFeature.withId(
         osmType="node",
         osmId=data["node_id"],
-        geometry=geojson.Point((data["sign_lat"], data["sign_long"])),
+        geometry=geojson.Point((data["sign_long"], data["sign_lat"])),
         properties={"task_instruction" : INSTRUCTIONS.replace("SIGNTYPEPLACEHOLDER", SIGNTYPE_MAP[data["sign_type"]]).replace("DIRECTION_VALUE_PLACEHOLDER", data["direction"]).replace("IMAGE_URL_PLACEHOLDER", data["img_url"])}
     )
     t = mrcb.Task(
@@ -164,8 +173,8 @@ for way in tqdm(ways):
             continue
         if data_handler.getNumberOfWaysNodeIsPartOf(give_way_node) > 1:
             continue
-        direction = data_handler.determine_give_way_direction(give_way_node)
-        angle = data_handler.calculate_rotation_angle(give_way_node)
+        direction = data_handler.determine_give_way_direction(give_way_node, way_id)
+        angle = data_handler.calculate_rotation_angle(give_way_node, way_id)
         int_angle = int(angle)
         sign_lat, sign_long = data_handler.get_node_coordinates(give_way_node)
         #print(f"Way ID: {way_id}, Give Way Node: {give_way_node}, Direction: {direction}, Angle: {angle}")
@@ -205,8 +214,8 @@ for way in tqdm(ways):
             continue
         if data_handler.getNumberOfWaysNodeIsPartOf(give_way_node) > 1:
             continue
-        direction = data_handler.determine_give_way_direction(stop_node)
-        angle = data_handler.calculate_rotation_angle(stop_node)
+        direction = data_handler.determine_give_way_direction(stop_node, way_id)
+        angle = data_handler.calculate_rotation_angle(stop_node, way_id)
         int_angle = int(angle)
         sign_lat, sign_long = data_handler.get_node_coordinates(stop_node)
         #print(f"Way ID: {way_id}, Stop Node: {stop_node}, Direction: {direction}, Angle: {angle}")
