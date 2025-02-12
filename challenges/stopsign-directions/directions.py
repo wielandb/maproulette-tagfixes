@@ -127,7 +127,7 @@ def addToChallenge(data):
     mainFeature = mrcb.GeoFeature.withId(
         osmType="node",
         osmId=data["node_id"],
-        geometry=geojson.Point((data["sign_long"], data["sign_lat"])),
+        geometry=geojson.Point((data["sign_lat"], data["sign_long"])),
         properties={"task_instruction" : INSTRUCTIONS.replace("SIGNTYPEPLACEHOLDER", SIGNTYPE_MAP[data["sign_type"]]).replace("DIRECTION_VALUE_PLACEHOLDER", data["direction"]).replace("IMAGE_URL_PLACEHOLDER", data["img_url"])}
     )
     t = mrcb.Task(
