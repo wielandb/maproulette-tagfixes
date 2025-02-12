@@ -127,7 +127,7 @@ def addToChallenge(data):
     mainFeature = mrcb.GeoFeature.withId(
         osmType="node",
         osmId=data["node_id"],
-        geometry=geojson.Point((data["sign_lat"], data["sign_long"])),
+        geometry=geojson.Point((data["sign_long"], data["sign_lat"])),
         properties={"task_instruction" : INSTRUCTIONS.replace("SIGNTYPEPLACEHOLDER", SIGNTYPE_MAP[data["sign_type"]]).replace("DIRECTION_VALUE_PLACEHOLDER", data["direction"]).replace("IMAGE_URL_PLACEHOLDER", data["img_url"])}
     )
     t = mrcb.Task(
@@ -141,8 +141,6 @@ def addToChallenge(data):
 
 import requests, os, json
 
-CHALLENGE_RAW_DATA = []
-
 static_map_size = "480x312"
 
 # Get all the way ids from ways that contain a highway=give_way node by getting https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A250%5D%3B%0Aarea%28id%3A3600051477%29-%3E.searchArea%3B%0Anode%5B%22highway%22%3D%22give_way%22%5D%5B%21%22direction%22%5D%28area.searchArea%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B
@@ -150,18 +148,19 @@ print("Downloading data from Overpass API...")
 response = requests.get("https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A250%5D%3B%0Aarea%28id%3A3600051477%29-%3E.searchArea%3B%0Anode%5B%22highway%22%3D%22give_way%22%5D%5B%21%22direction%22%5D%28area.searchArea%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B")
 data_handler = OSMDataHandler(response.text)
 ways = data_handler.get_ways()
-
+print("Sorting ways...")
 # For each of those ways, get the full way xml by calling osm.org/api/0.6/way/way_id/full
 for way in tqdm(ways):
     way_id = way["id"]
+    # Guard clause to skip *ways* that are problematic
+    if data_handler.discardWayForTags(data_handler.getWayTags(way_id)):
+        continue
     give_way_nodes = data_handler.get_give_way_nodes(way_id)
     for give_way_node in give_way_nodes:
-        # Guard clauses to skip nodes that are the first or last node in a way, are part of more than one way, or have tags that indicate oneway
+        # Guard clauses to skip *nodes in a way* that are problematic (first or last node in a way, part of more than one way)
         if data_handler.isFirstOrLastNodeInWay(give_way_node, way_id):
             continue
         if data_handler.getNumberOfWaysNodeIsPartOf(give_way_node) > 1:
-            continue
-        if data_handler.discardWayForTags(data_handler.getWayTags(way_id)):
             continue
         direction = data_handler.determine_give_way_direction(give_way_node)
         angle = data_handler.calculate_rotation_angle(give_way_node)
@@ -189,18 +188,20 @@ print("Downloading data from Overpass API...")
 response = requests.get("https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A250%5D%3B%0Aarea%28id%3A3600051477%29-%3E.searchArea%3B%0Anode%5B%22highway%22%3D%22stop%22%5D%5B%21%22direction%22%5D%28area.searchArea%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B")
 data_handler = OSMDataHandler(response.text)
 ways = data_handler.get_ways()
+print("Sorting ways...")
 
 # For each of those ways, get the full way xml by calling osm.org/api/0.6/way/way_id/full
 for way in tqdm(ways):
     way_id = way["id"]
+    # Guard clause to skip ways that are problematic
+    if data_handler.discardWayForTags(data_handler.getWayTags(way_id)):
+        continue
     stop_nodes = data_handler.get_stop_nodes(way_id)
     for stop_node in stop_nodes:
-        # Guard clauses to skip nodes that are the first or last node in a way, are part of more than one way, or have tags that indicate oneway
+        # Guard clauses to skip *nodes in a way* that are problematic (first or last node in a way, part of more than one way)
         if data_handler.isFirstOrLastNodeInWay(give_way_node, way_id):
             continue
         if data_handler.getNumberOfWaysNodeIsPartOf(give_way_node) > 1:
-            continue
-        if data_handler.discardWayForTags(data_handler.getWayTags(way_id)):
             continue
         direction = data_handler.determine_give_way_direction(stop_node)
         angle = data_handler.calculate_rotation_angle(stop_node)
