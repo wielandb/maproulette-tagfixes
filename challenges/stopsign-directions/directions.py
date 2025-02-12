@@ -99,7 +99,7 @@ class OSMDataHandler:
         return False
 
 stop_give_way_sign_direction_challenge = mrcb.Challenge()
-stop_give_way_sign_direction_challenge.loadFromFile("stop_give_way_sign_direction_challenge.json")
+#stop_give_way_sign_direction_challenge.loadFromFile("stop_give_way_sign_direction_challenge.json")
 
 INSTRUCTIONS = """
 Für dieses SIGNTYPEPLACEHOLDER gibt es keine Angabe darüber, in welche Richtung es im Verhältnis zur Verlaufsrichtung des Weges zeigt.
