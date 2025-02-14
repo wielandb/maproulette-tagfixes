@@ -120,8 +120,13 @@ Ist die Richtung korrekt?
 Für dieses SIGNTYPEPLACEHOLDER gibt es keine Angabe darüber, in welche Richtung es im Verhältnis zur Verlaufsrichtung des Weges zeigt.
 Mit einem simplen Algorithmus konnte ein wahrscheinlicher Wert ermittelt werden.
 Der vorgeschlagene Wert ist in diesem Fall: `direction=DIRECTION_VALUE_PLACEHOLDER`.
-Dieser wird auf dem gezeigten Bild visualisiert. Bitte überprüfe, ob die Richtung korrekt ist. (Und überprüfe natürlich gerne auch, ob der Standort des Schildes sinnvoll scheint!)
-Wenn ja, klicke auf "JA". Ansonsten klicke auf "NEIN", auf "ÜBERSPRINGEN" oder passe die Richtung an und klicke dann "JA".
+Dieser wird auf dem gezeigten Bild visualisiert.
+Bitte überprüfe, ob die Richtung korrekt ist. (Und überprüfe natürlich gerne auch, ob der Standort des Schildes sinnvoll scheint!)
+- Wenn ja, klicke auf "JA". 
+- Ansonsten
+   - klicke auf "NEIN", 
+   - oder passe die Richtung an und klicke dann "JA"
+- oder klicke auf "ÜBERSPRINGEN", wenn du dir unsicher bist und jemand anderes das überprüfen soll.
 
 """
 
