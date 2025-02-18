@@ -6,7 +6,7 @@ on:
   workflow_dispatch:  # Allows manual trigger
 
 jobs:
-  update-challenge:
+  update-stopsign-challenge:
     runs-on: ubuntu-latest
     
     steps:
