@@ -1,0 +1,39 @@
+Hier ist ein Objekt, dass bei OpenStreetMap das veraltete tagging "amenity=nursing_home" hat. Wir wollen dieses veraltete Tagging nun korrigieren, allerdings kann das alte Tag amenity=nursing_home verschiedenes
+bedeuten, deswegen müssen wir heruasfinden was für eine Einrichtung es wirklich ist.
+Dafür müssen wir den Key social_facility und social_fycility:for
+Folgende Möglichkeiten bestehen für social_facility:
+social_facility=group_home	Eine Wohngruppe bietet hauptsächlich Unterkünfte, Essen und medizinische Versorgung an. Daneben können Aktivitäten und Unterhaltung für die Betreuten angeboten werden, z.B. Altersheim (Wohngruppe auf Wikipedia)
+social_facility=nursing_home	Ein Pflegeheim ist eine Einrichtung, in der pflegebedürftige Menschen ganztägig untergebracht und unter der Verantwortung professioneller Pflegekräfte gepflegt und versorgt werden. Pflegeheim auf Wikipedia
+social_facility=hospice		Ein Hospiz ist eine Einrichtung zur Pflege und palliativen Behandlung Schwerstkranker und Sterbender. Darüber hinaus bieten Hospize oftmals Begleitung und Unterstützung der Angehörigen an. Da Hospize in der Regel für Kurzzeitaufenthalte gedacht sind, unterscheiden sie sich deutlich von anderen Pflegeeinrichtungen. Hospiz auf Wikipedia
+social_facility=assisted_living	Begleitendes oder Betreutes Wohnen genannt. Diese Einrichtung kommt zwar einer Wohngruppe sehr nahe, aber richtet sich eher an Menschen mit leichten Behinderungen, weshalb diese auch "eigenständiger" leben (eigene Wohnung), z.B. altersgerechte Wohnappartments für Senioren (Wikipedia: Betreutes Wohnen)
+social_facility=day_care	Tagespflege - eine Einrichtung, ähnlich social_facility=group_home, die täglich Essen, medizinische Versorgung und Aktivitäten anbietet, z.B. für Pflegefälle. Die Nutzer schlafen aber nicht hier, sondern bei ihren Familien.
+social_facility=shelter		Unterkunft - Eine Einrichtung, die vorübergehende Schlafplätze bietet, oder Menschen, die verfolgt werden, Zuflucht bietet, z.B. Obdachlosenheim (Wikipedia: Notunterkunft)
+social_facility=ambulatory_care	Einrichtung, die ambulante Dienste oder außerhäusliche soziale Arbeit leistet, z.B. die Zentrale eines ambulanten Pflegedienstes oder von Streetworkern (Wikipedia: Sozialstation, Häusliche Krankenpflege, Ambulante psychiatrische Pflege oder Streetworker)
+social_facility=healthcare	Ort, an dem begrenzt medizinische Versorgung gegeben wird, wie Drogenbehandlung oder kostenlose Impfung (beispielsweise eine Drogenentzugsanstalt Da es noch viele Streitigkeiten um diesen Tag gibt, entscheidet selbst. Schaut euch dazu die healthcare=*/Healthcare 2.0-Entwürfe an.
+social_facility=outreach	Sozialdienst - Eine gemeinnützige Einrichtung, die Sozialhilfe leistet. Beispielsweise, die Tagesbeschäftigung gestaltet, Freizeitaktivitäten veranstaltet, bei der Wohnungssuche hilft, bei rechtlichen Fragen miteintritt, Beratung für Familie, Drogen oder Krankheiten gibt (z.B. Familienberatungsstelle, Gemeindearbeit, "Kindergarten" für Senioren) (Wikipedia: Gemeinnützige Arbeit, Betreuungsverein oder Ehrenamt)
+social_facility=workshop	Eine Arbeitseinrichtung, in der hauptsächlich Menschen mit Behinderungen eingestellt werden z.B. Behindertenwerkstätten (Wikipedia: Behindertenwerkstätte)
+social_facility=clothing_bank	Kleiderkammer - Eine Ausgabestelle die Kleidung verteilt, in der Regel an die Armen, kostenlos oder unter dem Marktpreis.
+social_facility=food_bank	Lebensmitteltafel - Eine Ausgabestelle die Lebensmittel verteilt, in der Regel an die Armen, kostenlos oder unter dem Marktpreis. (z.B. Die Tafel auf Wikipedia)
+social_facility=soup_kitchen	Suppenküche - Ein Ort, an dem fertiges Essen verteilt wird oder warme Mahlzeiten serviert werden (Wikipedia: Suppenküche, Volxküche)
+
+
+Folgende Möglichkeiten bestehen für den Key social_facility:for:
+social_facility:for=abused	Menschen, die sexuelle Misshandlung oder gewalttätige Übergriffe erlitten haben.	
+social_facility:for=child	Kinder (Kinderheim)	
+social_facility:for=disabled	Menschen mit körperlicher und/oder geistiger Behinderung	
+social_facility:for=diseased	Menschen, die selbst, oder ein Nahestehender, von einer bestimmten Krankheit betroffen sind; die Krankheit möglichst im description-Tag angeben (z.B. AIDS-Beratung)	
+social_facility:for=drug_addicted	Drogensüchtige (z.B. für Drogenberatung)	
+social_facility:for=family	Familien oder Eltern(teile) mit Kind(ern)	
+social_facility:for=homeless	Obdachlose	
+social_facility:for=juvenile	Jugendliche und Teenager	
+social_facility:for=mental_health	Menschen mit psychischen Problemen und Krankheiten	
+social_facility:for=migrant	Menschen mit "Migrationshintergrund"	
+social_facility:for=orphan	Waisen	
+social_facility:for=refugee	Geflüchtete Menschen	
+social_facility:for=senior	Alte Menschen, Senioren	
+social_facility:for=terminally_ill	Unheilbar Kranke. Bsp. Hospitze oder Beratungsstellen	
+social_facility:for=underprivileged	Arme oder benachteiligte Menschen	
+social_facility:for=unemployed	Menschen ohne Arbeitsverhältnis	
+social_facility:for=victim	Opfer eines Verbrechens, wie eines Überfalls oder eines Hassverbrechens (z.B. psychologische Beratung für Traumabewältigung)
+
+Recherchiere für das Objekt mit dieser URL, welche Werte für den Tag social_facility= und social_facility:for= angemessen sind!
