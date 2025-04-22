@@ -10,76 +10,105 @@ except ImportError:
     def tqdm(x, *args, **kwargs):
         return x
 
+import asyncio
+from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
+from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
+from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
+import asyncio
+from crawl4ai import AsyncWebCrawler
+from crawl4ai.async_configs import BrowserConfig, CrawlerRunConfig
+
+import bs4, re
 
 
-def check_imgur_404(link):
-    # Build some headers to make the request look like it's coming from a browser
-    headers = {
-        'User-Agent': 'Mozilla/5.0 (Windows NT 10.0; Win64; x64) AppleWebKit/537.36 (KHTML, like Gecko) Chrome/58.0.3029.110 Safari/537.3'
-    }
-    if ";" in link:
+async def page(surl, html=False):
+    browser_config = BrowserConfig()  # Default browser configuration
+    run_config = CrawlerRunConfig()   # Default crawl run configuration
+
+    async with AsyncWebCrawler(config=browser_config) as crawler:
+        result = await crawler.arun(
+            url=surl,
+            config=run_config
+        )
+        if result.success:
+            if html:
+                return result.html
+            else:
+                return result.markdown
+        else:
+            return "Getting page failed. Website was not reachable."
+
+
+
+
+def get_website_as_markdown(url):
+    return asyncio.run(page(url))
+
+def get_website_as_html(url):
+    return asyncio.run(page(url, html=True))
+
+
+def check_imgur_404(link: str) -> bool:
+    
+    sitehtml = get_website_as_html(link)
+
+    soup = bs4.BeautifulSoup(sitehtml, "html.parser")
+
+    # PRIMARY TEST – layout class
+    if soup.select_one(".GalleryCover"):
+        print("GalleryCover detected")
         return False
-    # remove .jpg from the link
-    link = link.replace(".jpg", "")
-    link = link.replace(".png", "")
-    link = link.replace(".jpeg", "")
-    # remove i. from the link
-    link = link.replace("i.", "")
-    # Replace http with https
-    link = link.replace("http://", "https://")
-    reqSucc = False
-    while not reqSucc:
-        try:
-            ans = requests.get(link, headers=headers, allow_redirects=True)
-            reqSucc = True
-        except requests.exceptions.ConnectionError:
-            print("Connection error, retrying")
-            print(link)
-            sleep(10)
-        except (requests.exceptions.InvalidSchema, requests.exceptions.MissingSchema):
-            return False
-    print(ans.status_code)
-    if "error/404" in ans.url:
-        print(link, "is a 404 image")
+    if soup.select_one(".HomeCover"):
+        print("HomeCover detected")
         return True
-    else:
-        return False
 
-op = mrcb.Overpass()
+    # SECOND TEST – og:url
+    og = soup.find("meta", attrs={"property": "og:url"})
+    if og and og["content"].rstrip("/") == "https://imgur.com":
+        print("og:url detected")
+        return True
 
-elements = op.getElementsFromQuery(
-    """
-    [out:json][timeout:250];
-    nwr["image"~"i.imgur.com"];
-    out tags center;
-    """
-)
-challenge = mrcb.Challenge()
 
-random.shuffle(elements)
+    # default to 'exists' if none of the negative tests fired
+    return False
 
-for element in tqdm(elements):
-    if check_imgur_404(element["tags"]["image"]):
-        tagChanges = {"image":None}
-        if "source" in element["tags"]:
-            if "anasonic" in element["tags"]["source"]:
-                tagChanges["source"] = None
-        geom = mrcb.getElementCenterPoint(element)
-        mainFeature = mrcb.GeoFeature.withId(
-            element["type"],
-            element["id"],
-            geom,
-            properties={}
-        )
-        cooperativeWork = mrcb.TagFix(
-            element["type"],
-            element["id"],
-            tagChanges
-        )
-        t = mrcb.Task(
-            mainFeature,
-            additionalFeatures=[],
-            cooperativeWork=cooperativeWork
-        )
-        challenge.addTask(t)
-        challenge.saveToFile("imgur404.json")
+if __name__ == "__main__":
+    op = mrcb.Overpass()
+
+    elements = op.getElementsFromQuery(
+        """
+        [out:json][timeout:250];
+        nwr["image"~"i.imgur.com"];
+        out tags center;
+        """
+    )
+    challenge = mrcb.Challenge()
+
+    random.shuffle(elements)
+
+    for element in tqdm(elements):
+        print("Checking element: ", element["type"], "/", element["id"])
+        if check_imgur_404(element["tags"]["image"]):
+            tagChanges = {"image":None}
+            if "source" in element["tags"]:
+                if "anasonic" in element["tags"]["source"]:
+                    tagChanges["source"] = None
+            geom = mrcb.getElementCenterPoint(element)
+            mainFeature = mrcb.GeoFeature.withId(
+                element["type"],
+                element["id"],
+                geom,
+                properties={}
+            )
+            cooperativeWork = mrcb.TagFix(
+                element["type"],
+                element["id"],
+                tagChanges
+            )
+            t = mrcb.Task(
+                mainFeature,
+                additionalFeatures=[],
+                cooperativeWork=cooperativeWork
+            )
+            challenge.addTask(t)
+            challenge.saveToFile("imgur404.json")

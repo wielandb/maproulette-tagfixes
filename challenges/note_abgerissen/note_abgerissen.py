@@ -9,19 +9,20 @@ def needs_task(element):
 
 
 op = mrcb.Overpass()
+print("Fetching elements from Overpass...")
 
 elements = op.getElementsFromQuery(
     """
 [out:json][timeout:250];
 area(id:3600051477)->.searchArea;
-nwr["note"~"bgerissen"](area.searchArea);
+nwr["note"~"bgerissen"](if:count_tags()==1)(area.searchArea);
 out tags center;
     """
 )
 
 challenge = mrcb.Challenge()
 
-for element in elements:
+for element in tqdm(elements):
     if needs_task(element):
         geom = mrcb.getElementCenterPoint(element)
         mainFeature = mrcb.GeoFeature.withId(
