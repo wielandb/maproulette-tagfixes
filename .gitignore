@@ -5,3 +5,4 @@
 *.pbf
 shared/create_geofabrik_leafs.py
 shared/matches.txt
+challenges/imgur404/matches.json
