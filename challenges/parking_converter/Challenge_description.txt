@@ -1,0 +1,4 @@
+In this challenge, you convert the old street parking schema `parking:lane:<side>=*` to the new schema `parking:<side>=*`.
+Sometimes you'll have to convert tags that could not be automatically converted by hand, so be sure to [read the documentation about the new street parking schema on the wiki](https://wiki.openstreetmap.org/wiki/Street_parking)!
+
+The code for this challenge can be found [here](https://github.com/wielandb/maproulette-tagfixes/tree/main/challenges/parking_converter). The discussion for this challenge is held [here]().
