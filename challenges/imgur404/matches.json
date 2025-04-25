@@ -1,0 +1,62 @@
+[
+    {
+        "type": "node",
+        "id": 8124326978,
+        "tags": {
+            "addr:city": "Luanda",
+            "addr:housenumber": "3",
+            "addr:street": "Rua da Sentinela",
+            "air_conditioning": "yes",
+            "craft": "electronics_repair",
+            "description": "Somos uma empresa de reparação e assistência técnica especializada em produtos de marca Apple.",
+            "email": "info@ipixel.co.ao",
+            "image": "https://i.imgur.com/gAehnFS.jpg",
+            "internet_access": "wlan",
+            "internet_access:ssid": "Pixel Visitante",
+            "name": "iPixel",
+            "opening_hours": "Mo-Fr 08:00-19:00; Sa 08:00-13:00",
+            "operator": "Pixel Infinito",
+            "phone": "+244927776097‬;+244‭222773493‬",
+            "website": "https://ipixel.co.ao"
+        },
+        "lat": -8.8597526,
+        "lon": 13.2036349
+    },
+    {
+        "type": "way",
+        "id": 1207339535,
+        "tags": {
+            "building": "house",
+            "building:levels": "1",
+            "check_date": "2023-09-12",
+            "description": "Residence of Mbobock Bassong ba Bassong Maurice (Otis) and his family.",
+            "house": "residential",
+            "image": "https://i.imgur.com/Se7PNpw.jpg",
+            "name": "Family Bassong (Otis)"
+        },
+        "center": {
+            "lat": 3.5963157,
+            "lon": 10.9219911
+        }
+    },
+    {
+        "type": "way",
+        "id": 159396868,
+        "tags": {
+            "addr:city": "Malealea Village",
+            "cuisine": "barbecue",
+            "description": "Lodge & Pony Trek Center",
+            "image": "http://i.imgur.com/9bUMbl.jpg",
+            "name": "Malealea Lodge",
+            "phone": "+27 21 762 1543",
+            "source": "LOK",
+            "tourism": "hostel",
+            "website": "https://malealea.com/",
+            "wheelchair": "limited"
+        },
+        "center": {
+            "lat": -29.8278917,
+            "lon": 27.6002438
+        }
+    }
+]

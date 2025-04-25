@@ -21,6 +21,9 @@ from crawl4ai.async_configs import BrowserConfig, CrawlerRunConfig
 
 import bs4, re
 
+import valueFinder as vf
+import json
+
 
 async def page(surl, html=False):
     browser_config = BrowserConfig()  # Default browser configuration
@@ -73,6 +76,18 @@ def check_imgur_404(link: str) -> bool:
     # default to 'exists' if none of the negative tests fired
     return False
 
+def extract_imgur_link_from_string(string: str) -> str:
+    """
+    Extracts the imgur link (which looks like e.g http://i.imgur.com/PCPiL7xl.jpg) from a string.
+    Returns the first imgur link found or None if no link is found.
+    """
+    pattern = r"(https?://i\.imgur\.com/[a-zA-Z0-9]+(?:\.[a-zA-Z]{2,3})?)"
+    match = re.search(pattern, string)
+    if match:
+        return match.group(0)
+    return None
+
+
 def get_osm_history(osmtype: str, osmid: int) -> list:
     """Fetch full history of an OSM element"""
     base_url = "https://api.openstreetmap.org/api/0.6"
@@ -121,14 +136,10 @@ def find_tag_setter(osmtype: str, osmid: int, key: str, value: str) -> tuple:
 if __name__ == "__main__":
     op = mrcb.Overpass()
 
-    elements = op.getElementsFromQuery(
-        """
-        [out:json][timeout:250];
-        nwr["image"~"i.imgur.com"];
-        out tags center;
-        """
-    )
-    challenge = mrcb.Challenge()
+    vf.main()
+    # Load the elements from the JSON file matches.json
+    with open("matches.json", "r") as f:
+        elements = json.load(f)
     
     # Dictionary to store user -> list of problematic edits
     user_edits = {}
@@ -142,7 +153,8 @@ if __name__ == "__main__":
         # Check all tags for imgur URLs
         for tag_key, tag_value in element["tags"].items():
             if isinstance(tag_value, str) and "i.imgur.com" in tag_value:
-                if check_imgur_404(tag_value):
+                imgur_link = extract_imgur_link_from_string(tag_value)
+                if check_imgur_404(imgur_link):
                     tagChanges[tag_key] = None
                     print(f"Found 404 imgur link in tag: {tag_key}")
                     
@@ -159,6 +171,11 @@ if __name__ == "__main__":
                             'key': tag_key,
                             'value': tag_value
                         })
+                        # Save the user_edits to a file
+                        with open("user_reports.json", "w", encoding='utf-8') as f:
+                            json.dump(user_edits, f, indent=2, ensure_ascii=False)
+                    else:
+                        print(f"Could not find who set the tag {tag_key} for {element['type']}/{element['id']}")
         
         # Only create a task if we found tags to change
         if tagChanges:
