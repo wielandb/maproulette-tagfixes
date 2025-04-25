@@ -15,6 +15,8 @@ GEOFABRIK_JSON = 'geofabrik_leafs.json'
 MATCHES_FILE = 'matches.json'
 SEARCH_SEQUENCE = 'i.imgur.com'
 OVERPASS_API = "https://overpass-api.de/api/interpreter"
+PROCCESSED_URLS = []
+
 
 class MatchType(str, Enum):
     CONTAINS = "contains"
@@ -161,6 +163,15 @@ def download_file(url, local_filename):
         progress_bar.close()
 
 def main():
+    # Load processed URLs from file if it exists
+    if os.path.exists('processed_urls.json'):
+        with open('processed_urls.json', 'r', encoding='utf-8') as f:
+            try:
+                PROCCESSED_URLS = json.load(f)
+            except json.JSONDecodeError:
+                PROCCESSED_URLS = []
+    else:
+        PROCCESSED_URLS = []
     # Load list of .osm.pbf files from geofabrik_leafs.json
     try:
         with open(GEOFABRIK_JSON, 'r', encoding='utf-8') as f:
@@ -169,15 +180,23 @@ def main():
         print(f"File {GEOFABRIK_JSON} not found.")
         sys.exit(1)
     for pbf_url in tqdm(leafs):
+        # Skip URLs that have already been processed
+        if pbf_url in PROCCESSED_URLS:
+            print(f"Skipping already processed URL: {pbf_url}")
+            continue
         local_filename = os.path.basename(pbf_url)
         print(f"Downloading {pbf_url} ...")
         # Only download the file if local_filename does not exist
         download_file(pbf_url, local_filename)
-
         handler = ValueFinderHandler(SEARCH_SEQUENCE, MATCHES_FILE)
         handler.apply_file(local_filename)
         print(f"Deleting {local_filename} ...")
         os.remove(local_filename)
+        # Add the downloaded URL to the processed URLs list
+        PROCCESSED_URLS.append(pbf_url)
+        # Save the processed URLs to a file
+        with open('processed_urls.json', 'w', encoding='utf-8') as f:
+            json.dump(PROCCESSED_URLS, f, ensure_ascii=False, indent=4)
     print("Done.")
 
 def find_value_objects(

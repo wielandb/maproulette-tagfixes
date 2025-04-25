@@ -134,12 +134,17 @@ def find_tag_setter(osmtype: str, osmid: int, key: str, value: str) -> tuple:
     return None, None
 
 if __name__ == "__main__":
-    op = mrcb.Overpass()
-
-    vf.main()
     # Load the elements from the JSON file matches.json
+    
+    vf.main()
     with open("matches.json", "r") as f:
         elements = json.load(f)
+    # Load the user reports from the JSON file user_reports.json
+    try:
+        with open("user_reports.json", "r") as f:
+            user_reports = json.load(f)
+    except FileNotFoundError:
+        user_reports = {}
     
     # Dictionary to store user -> list of problematic edits
     user_edits = {}

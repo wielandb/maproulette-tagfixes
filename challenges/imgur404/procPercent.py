@@ -3,6 +3,7 @@ import gzip
 import io
 import re
 import os
+import time
 
 STATE_URL = 'https://planet.openstreetmap.org/replication/minute/state.txt'
 BASE_URL = 'https://planet.openstreetmap.org/replication/minute'
