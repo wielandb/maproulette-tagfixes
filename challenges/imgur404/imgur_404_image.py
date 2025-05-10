@@ -11,14 +11,6 @@ except ImportError:
     def tqdm(x, *args, **kwargs):
         return x
 
-import asyncio
-from crawl4ai import AsyncWebCrawler, CrawlerRunConfig
-from crawl4ai.deep_crawling import BFSDeepCrawlStrategy
-from crawl4ai.content_scraping_strategy import LXMLWebScrapingStrategy
-import asyncio
-from crawl4ai import AsyncWebCrawler
-from crawl4ai.async_configs import BrowserConfig, CrawlerRunConfig
-
 import bs4, re
 
 import valueFinder as vf
@@ -27,46 +19,6 @@ import json
 import base64
 
 import appStrings
-
-async def page(surl, html=False):
-    browser_config = BrowserConfig(
-        #headless=True,
-        #use_managed_browser=True,
-        #user_data_dir="C:\\Users\\wiela\\Documents\\GitHub\\maproulette-tagfixes\\challenges\\imgur404\\browser_user",
-        #browser_type="chromium"
-    )  # Default browser configuration
-    run_config = CrawlerRunConfig(
-        #screenshot=True,
-        #screenshot_wait_for=14.0,
-        #magic=True,
-        #remove_overlay_elements=True,
-    )   # Default crawl run configuration
-
-    async with AsyncWebCrawler(config=browser_config) as crawler:
-        result = await crawler.arun(
-            url=surl,
-            config=run_config
-        )
-        if result.success:
-            if result.screenshot:
-                with open("page.png", "wb") as f:
-                    f.write(base64.b64decode(result.screenshot))
-                sleep(10)
-            if html:
-                return result.html
-            else:
-                return result.markdown
-        else:
-            return "Getting page failed. Website was not reachable."
-
-
-
-
-def get_website_as_markdown(url):
-    return asyncio.run(page(url))
-
-def get_website_as_html(url):
-    return asyncio.run(page(url, html=True))
 
 
 def check_imgur_404(link: str) -> bool:
