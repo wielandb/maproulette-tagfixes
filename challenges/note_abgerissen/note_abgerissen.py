@@ -20,6 +20,7 @@ out tags center;
     """
 )
 
+
 challenge = mrcb.Challenge()
 
 for element in tqdm(elements):

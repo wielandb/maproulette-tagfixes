@@ -2,7 +2,4 @@ requests
 time
 sys
 random
-asyncio
-crawl4ai
-bs4
 re
