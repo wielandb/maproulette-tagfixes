@@ -1,0 +1,11 @@
+This object contains one or more imgur links that are not reachable anymore. Please check the links and click "Yes" on the right side to remove them if they are not reachable anymore. The links are:
+
+{{linkList}}
+
+If theese images are truly not reachable anymore, please remove them from the object. If you have theese images somewhere else, please reupload them to imgur under a account, or, even better, to a more open site like Wikimedia Commons if applicable.
+
+Here, for yor reference, is a list of all tags of the object. Be sure to check for other tags tied to the image(s) that will be removed:
+
+{{fullTagTable}}
+
+Be sure to remove any tags that will make no sense once the imgur-Links are gone as well.

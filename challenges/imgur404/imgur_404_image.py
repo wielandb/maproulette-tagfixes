@@ -24,10 +24,23 @@ import bs4, re
 import valueFinder as vf
 import json
 
+import base64
+
+import appStrings
 
 async def page(surl, html=False):
-    browser_config = BrowserConfig()  # Default browser configuration
-    run_config = CrawlerRunConfig()   # Default crawl run configuration
+    browser_config = BrowserConfig(
+        #headless=True,
+        #use_managed_browser=True,
+        #user_data_dir="C:\\Users\\wiela\\Documents\\GitHub\\maproulette-tagfixes\\challenges\\imgur404\\browser_user",
+        #browser_type="chromium"
+    )  # Default browser configuration
+    run_config = CrawlerRunConfig(
+        #screenshot=True,
+        #screenshot_wait_for=14.0,
+        #magic=True,
+        #remove_overlay_elements=True,
+    )   # Default crawl run configuration
 
     async with AsyncWebCrawler(config=browser_config) as crawler:
         result = await crawler.arun(
@@ -35,6 +48,10 @@ async def page(surl, html=False):
             config=run_config
         )
         if result.success:
+            if result.screenshot:
+                with open("page.png", "wb") as f:
+                    f.write(base64.b64decode(result.screenshot))
+                sleep(10)
             if html:
                 return result.html
             else:
@@ -53,39 +70,69 @@ def get_website_as_html(url):
 
 
 def check_imgur_404(link: str) -> bool:
-    
-    sitehtml = get_website_as_html(link)
+    print("Checking imgur link: ", link)
+    # Checking a link for if the image is not available anymore
+    # We can do this by using the imgur oembed API, which returns a 200 if the image is available and a 403 if it is not.
+    # For that, we check https://api.imgur.com/oembed.json?url=https://imgur.com/[image_id]
+    # We need to extract the image id from the link, which is the part between the last / and the .jpg, or, if there is no .jpg, after the last /
 
-    soup = bs4.BeautifulSoup(sitehtml, "html.parser")
+    imgur_link = extract_imgur_id_from_link(link)
+    if imgur_link is None:
+        raise ValueError("No imgur link found in the string")
+    # Get the api for that id
+    api_url = f"https://api.imgur.com/oembed.json?url=https://imgur.com/{imgur_link}"
+    # this url return json.
+    # A valid (available) image returns something like this: {"version":"1.0","type":"rich","provider_name":"Imgur","provider_url":"https:\/\/imgur.com","width":540,"height":500,"html":"<blockquote class=\"imgur-embed-pub\" lang=\"en\" data-id=\"O14zPtk\"><a href=\"https:\/\/imgur.com\/O14zPtk\">turnstile<\/a><\/blockquote><script async src=\"\/\/s.imgur.com\/min\/embed.js\" charset=\"utf-8\"><\/script>"}
+    # An invalid (unavailable) image returns something like this: {"data":{"error":"Invalid URL - forbidden","request":"\/oembed.json","method":"GET"},"success":false,"status":403}
 
-    # PRIMARY TEST – layout class
-    if soup.select_one(".GalleryCover"):
-        print("GalleryCover detected")
+    response = requests.get(api_url)
+    if response.status_code == 200:
+        # The image is available
+        print("Image is available")
         return False
-    if soup.select_one(".HomeCover"):
-        print("HomeCover detected")
+    elif response.status_code == 403:
+        # The image is not available
+        print("Image is not available")
         return True
+    else:
+        raise ValueError("Error while checking imgur link: ", link, response.status_code, response.text)
 
-    # SECOND TEST – og:url
-    og = soup.find("meta", attrs={"property": "og:url"})
-    if og and og["content"].rstrip("/") == "https://imgur.com":
-        print("og:url detected")
-        return True
-
-
-    # default to 'exists' if none of the negative tests fired
-    return False
 
 def extract_imgur_link_from_string(string: str) -> str:
     """
-    Extracts the imgur link (which looks like e.g http://i.imgur.com/PCPiL7xl.jpg) from a string.
+    Extracts the imgur link (which looks like e.g http://i.imgur.com/PCPiL7xl.jpg or http://i.imgur.com/PCPiL7xl.jpeg or https://imgur.com/PCPiL7xl) from a string.
     Returns the first imgur link found or None if no link is found.
     """
-    pattern = r"(https?://i\.imgur\.com/[a-zA-Z0-9]+(?:\.[a-zA-Z]{2,3})?)"
+    pattern = r"(http|https):\/\/(i\.)?imgur\.com\/([a-zA-Z0-9]+)(\.jpg|\.jpeg|\.png)?"
     match = re.search(pattern, string)
     if match:
+        # return the full link
         return match.group(0)
-    return None
+    else:
+        # Try to find a link without http(s)://
+        pattern = r"(i\.)?imgur\.com\/([a-zA-Z0-9]+)(\.jpg|\.jpeg|\.png)?"
+        match = re.search(pattern, string)
+        if match:
+            # return the full link
+            return "https://" + match.group(0)
+        else:
+            # return None if no link is found
+            print("No imgur link found in string: ", string)
+            raise ValueError("No imgur link found in string: ", string)
+            return None
+
+
+
+def extract_imgur_id_from_link(link: str) -> str:
+    """
+    Extracts the imgur id from a link.
+    The id is the part between the last / and the .jpg, or, if there is no .jpg, after the last /.
+    """
+    # Check if the link ends with .jpg
+    if link.endswith(".jpg"):
+        return link.split("/")[-1].split(".")[0]
+    else:
+        return link.split("/")[-1]
 
 
 def get_osm_history(osmtype: str, osmid: int) -> list:
@@ -111,7 +158,7 @@ def find_tag_setter(osmtype: str, osmid: int, key: str, value: str) -> tuple:
     elements = soup.find_all(osmtype)
     
     # Go through versions in reverse to find when the tag was set
-    for element in reversed(elements):
+    for element in elements:
         version = int(element.get("version"))
         username = element.get("user")
         tags = element.find_all("tag")
@@ -137,30 +184,38 @@ if __name__ == "__main__":
     # Load the elements from the JSON file matches.json
     
     vf.main()
-    with open("matches.json", "r") as f:
-        elements = json.load(f)
+    with open("matches.json", "r", encoding='utf-8') as f:
+           elements = json.load(f)
     # Load the user reports from the JSON file user_reports.json
+    #try:
+    #    with open("user_reports.json", "r", encoding='utf-8') as f:
+    #        user_reports = json.load(f)
+    #except FileNotFoundError:
+    user_reports = {}
+    # Delete the content of the user_reports/ directory
     try:
-        with open("user_reports.json", "r") as f:
-            user_reports = json.load(f)
+        for filename in os.listdir("user_reports/"):
+            os.remove(os.path.join("user_reports/", filename))
     except FileNotFoundError:
-        user_reports = {}
+        pass
     
-    # Dictionary to store user -> list of problematic edits
+    # Dictionary to store user -> list of edits
     user_edits = {}
 
+    challenge = mrcb.Challenge()
     random.shuffle(elements)
 
     for element in tqdm(elements):
         print("Checking element: ", element["type"], "/", element["id"])
         tagChanges = {}
-        
+        offendingKeyValues = {}
         # Check all tags for imgur URLs
         for tag_key, tag_value in element["tags"].items():
             if isinstance(tag_value, str) and "i.imgur.com" in tag_value:
                 imgur_link = extract_imgur_link_from_string(tag_value)
                 if check_imgur_404(imgur_link):
                     tagChanges[tag_key] = None
+                    offendingKeyValues[tag_key] = tag_value
                     print(f"Found 404 imgur link in tag: {tag_key}")
                     
                     # Find who set this tag
@@ -168,7 +223,7 @@ if __name__ == "__main__":
                     if username:
                         if username not in user_edits:
                             user_edits[username] = []
-                        # Store the problematic edit with all relevant info
+                        # Store the relevant edit with all relevant info
                         user_edits[username].append({
                             'type': element["type"],
                             'id': element["id"],
@@ -184,12 +239,15 @@ if __name__ == "__main__":
         
         # Only create a task if we found tags to change
         if tagChanges:
+            # Create a list of the keys and values to be changed, format the links as Reachable links, start every row with a dash and end it with a newline
+            linkList = "\n".join([f"- {key}: {value}" for key, value in offendingKeyValues.items()])
+            fullTagTable = mrcb.TagsAsMdTable(element["tags"])
             geom = mrcb.getElementCenterPoint(element)
             mainFeature = mrcb.GeoFeature.withId(
                 element["type"],
                 element["id"],
                 geom,
-                properties={}
+                properties={"linkList": linkList, "fullTagTable": fullTagTable}
             )
             cooperativeWork = mrcb.TagFix(
                 element["type"],
@@ -211,7 +269,9 @@ if __name__ == "__main__":
         for username, edits in user_edits.items():
             filename = os.path.join("user_reports", f"{username}.txt")
             with open(filename, 'w', encoding='utf-8') as f:
+                f.write(str(appStrings.USER_REPORT_MESSAGE_START))
                 for edit in edits:
                     # Create OSM web link to the specific version
                     osm_link = f"https://www.openstreetmap.org/{edit['type']}/{edit['id']}/history#{edit['version']}"
                     f.write(f"{osm_link} - tag '{edit['key']}' with value '{edit['value']}'\n")
+                f.write(str(appStrings.USER_REPORT_MESSAGE_END))

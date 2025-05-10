@@ -55,12 +55,26 @@ class ValueFinderHandler(osmium.SimpleHandler):
             response = requests.post(OVERPASS_API, data={"data": query})
             response.raise_for_status()
             data = response.json()
+            print(data)
             if data["elements"]:
                 element = data["elements"][0]
                 if "center" in element:
                     return Center(lat=element["center"]["lat"], lon=element["center"]["lon"])
                 elif "lat" in element:
                     return Center(lat=element["lat"], lon=element["lon"])
+                elif "members" in element:
+                    # if there are no coordinates, then its a relation of relations where overpass cannot find a center.
+                    # In this case, we recursively call the function for each member until we find something that we can use as a display center.
+                    center = None
+                    for member in element["members"]:
+                        if member["type"] == "node":
+                            center = Center(lat=member["lat"], lon=member["lon"])
+                            break
+                        elif member["type"] in ["way", "relation"]:
+                            center = self.get_center_coordinates(member["type"], member["ref"])
+                            if center:
+                                break
+                    return center
         except Exception as e:
             print(f"Failed to get center coordinates for {osm_type}/{osm_id}: {e}")
         return None
@@ -80,7 +94,9 @@ class ValueFinderHandler(osmium.SimpleHandler):
             element["lon"] = obj.location.lon
         elif osm_type in ['way', 'relation']:
             # Get center coordinates using Overpass API
+            print("Creating center coordinates for way/relation")
             center = self.get_center_coordinates(osm_type, obj.id)
+            print("Center coordinates: ", center)
             if center:
                 element["center"] = asdict(center)
             else:
