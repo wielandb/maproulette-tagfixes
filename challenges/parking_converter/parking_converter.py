@@ -380,6 +380,34 @@ def convert_base_parking_tags(tags):
     if "parking:condition:both" in tags and tags["parking:condition:both"] == "free":
         tagChanges["parking:both:fee"] = "no"
         tagChanges["parking:condition:both"] = None
+    ## condition: disc
+    if "parking:condition:right" in tags and tags["parking:condition:right"] == "disc":
+        if "parking:condition:right:maxstay" in tags and "parking:condition:right:time_interval" in tags:
+            maxstay = tags["parking:condition:right:maxstay"]
+            interval = tags["parking:condition:right:time_interval"]
+            tagChanges["parking:right:maxstay:conditional"] = f"{maxstay} @ {interval}"
+            tagChanges["parking:right:authentication:conditional"] = f"disc @ {interval}"
+            tagChanges["parking:condition:right"] = None
+            tagChanges["parking:condition:right:maxstay"] = None
+            tagChanges["parking:condition:right:time_interval"] = None
+    if "parking:condition:left" in tags and tags["parking:condition:left"] == "disc":
+        if "parking:condition:left:maxstay" in tags and "parking:condition:left:time_interval" in tags:
+            maxstay = tags["parking:condition:left:maxstay"]
+            interval = tags["parking:condition:left:time_interval"]
+            tagChanges["parking:left:maxstay:conditional"] = f"{maxstay} @ {interval}"
+            tagChanges["parking:left:authentication:conditional"] = f"disc @ {interval}"
+            tagChanges["parking:condition:left"] = None
+            tagChanges["parking:condition:left:maxstay"] = None
+            tagChanges["parking:condition:left:time_interval"] = None
+    if "parking:condition:both" in tags and tags["parking:condition:both"] == "disc":
+        if "parking:condition:both:maxstay" in tags and "parking:condition:both:time_interval" in tags:
+            maxstay = tags["parking:condition:both:maxstay"]
+            interval = tags["parking:condition:both:time_interval"]
+            tagChanges["parking:both:maxstay:conditional"] = f"{maxstay} @ {interval}"
+            tagChanges["parking:both:authentication:conditional"] = f"disc @ {interval}"
+            tagChanges["parking:condition:both"] = None
+            tagChanges["parking:condition:both:maxstay"] = None
+            tagChanges["parking:condition:both:time_interval"] = None
     ## condition: no_parking
     if "parking:condition:right" in tags and tags["parking:condition:right"] == "no_parking":
         tagChanges["parking:right"] = "no"

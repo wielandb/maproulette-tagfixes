@@ -7,3 +7,6 @@ python imgur_404_image.py
 cd ..\..
 cd challenges\note_abgerissen
 python note_abgerissen.py
+cd ..\..
+cd challenges\parking_converter
+python parking_converter.py

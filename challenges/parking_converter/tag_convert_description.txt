@@ -114,4 +114,9 @@ marked (becomes "parking:SIDE:markings=yes" as we do not know anything else)
 {"parking:lane:both":"marked", "parking:lane:both:marked":"street_side"} -> {"parking:both":"street_side", "parking:both:markings":"yes"
 
 
+frequent example: Parking with disc in time interval
+{"parking:condition:right=disc", "parking:condition:right:maxstay": "[Time duration]", "parking:condition:right:time_interval":"[Time interval]"} -> {"parking:right:maxstay:conditional": "[Time duration] @ [Time interval]", "parking:right:authentication:conditional": "disc @ [Time interval]"}
+{"parking:condition:left=disc", "parking:condition:left:maxstay": "[Time duration]", "parking:condition:left:time_interval":"[Time interval]"} -> {"parking:left:maxstay:conditional": "[Time duration] @ [Time interval]", "parking:left:authentication:conditional": "disc @ [Time interval]"}
+{"parking:condition:both=disc", "parking:condition:both:maxstay": "[Time duration]", "parking:condition:both:time_interval":"[Time interval]"} -> {"parking:both:maxstay:conditional": "[Time duration] @ [Time interval]", "parking:both:authentication:conditional": "disc @ [Time interval]"}
+
 """
