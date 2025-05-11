@@ -396,7 +396,7 @@ def convert_base_parking_tags(tags):
             maxstay = tags["parking:condition:right:maxstay"]
             interval = tags["parking:condition:right:time_interval"]
             tagChanges["parking:right:maxstay:conditional"] = f"{maxstay} @ {interval}"
-            tagChanges["parking:right:authentication:conditional"] = f"disc @ {interval}"
+            tagChanges["parking:right:authentication:disc:conditional"] = f"yes @ {interval}"
             tagChanges["parking:condition:right"] = None
             tagChanges["parking:condition:right:maxstay"] = None
             tagChanges["parking:condition:right:time_interval"] = None
@@ -405,7 +405,7 @@ def convert_base_parking_tags(tags):
             maxstay = tags["parking:condition:left:maxstay"]
             interval = tags["parking:condition:left:time_interval"]
             tagChanges["parking:left:maxstay:conditional"] = f"{maxstay} @ {interval}"
-            tagChanges["parking:left:authentication:conditional"] = f"disc @ {interval}"
+            tagChanges["parking:left:authentication:disc:conditional"] = f"yes @ {interval}"
             tagChanges["parking:condition:left"] = None
             tagChanges["parking:condition:left:maxstay"] = None
             tagChanges["parking:condition:left:time_interval"] = None
@@ -414,7 +414,7 @@ def convert_base_parking_tags(tags):
             maxstay = tags["parking:condition:both:maxstay"]
             interval = tags["parking:condition:both:time_interval"]
             tagChanges["parking:both:maxstay:conditional"] = f"{maxstay} @ {interval}"
-            tagChanges["parking:both:authentication:conditional"] = f"disc @ {interval}"
+            tagChanges["parking:both:authentication:disc:conditional"] = f"yes @ {interval}"
             tagChanges["parking:condition:both"] = None
             tagChanges["parking:condition:both:maxstay"] = None
             tagChanges["parking:condition:both:time_interval"] = None
