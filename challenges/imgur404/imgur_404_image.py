@@ -132,6 +132,26 @@ def find_tag_setter(osmtype: str, osmid: int, key: str, value: str) -> tuple:
             
     return None, None
 
+def create_user_reports(user_edits):
+        # Create per-user files
+        for username, edits in user_edits.items():
+            filename = os.path.join("user_reports", f"{username}.txt")
+            with open(filename, 'w', encoding='utf-8') as f:
+                f.write(str(appStrings.USER_REPORT_MESSAGE_START_DE))
+                for edit in edits:
+                    # Create OSM web link to the specific version
+                    osm_link = f"https://www.openstreetmap.org/{edit['type']}/{edit['id']}/history#{edit['version']}"
+                    f.write(f"{osm_link} - `{edit['key']}={edit['value']}`\n")
+                f.write(str(appStrings.USER_REPORT_MESSAGE_END_DE))
+                f.write("\n\n")
+                f.write(str(appStrings.USER_REPORT_MESSAGE_START_EN))
+                for edit in edits:
+                    # Create OSM web link to the specific version
+                    osm_link = f"https://www.openstreetmap.org/{edit['type']}/{edit['id']}/history#{edit['version']}"
+                    f.write(f"{osm_link} - `{edit['key']}={edit['value']}`\n")
+                f.write(str(appStrings.USER_REPORT_MESSAGE_END_EN))
+
+
 if __name__ == "__main__":
     # Load the elements from the JSON file matches.json
     
@@ -217,13 +237,4 @@ if __name__ == "__main__":
         # Create output directory if it doesn't exist
         os.makedirs("user_reports", exist_ok=True)
         
-        # Create per-user files
-        for username, edits in user_edits.items():
-            filename = os.path.join("user_reports", f"{username}.txt")
-            with open(filename, 'w', encoding='utf-8') as f:
-                f.write(str(appStrings.USER_REPORT_MESSAGE_START))
-                for edit in edits:
-                    # Create OSM web link to the specific version
-                    osm_link = f"https://www.openstreetmap.org/{edit['type']}/{edit['id']}/history#{edit['version']}"
-                    f.write(f"{osm_link} - tag '{edit['key']}' with value '{edit['value']}'\n")
-                f.write(str(appStrings.USER_REPORT_MESSAGE_END))
+        create_user_reports(user_edits)

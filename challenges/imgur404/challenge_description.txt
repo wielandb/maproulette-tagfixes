@@ -1,4 +1,4 @@
 In this challenge, you remove imgur-Links that no longer lead to an image.
 Most probably because they were deleted when imgur removed all links not tied to an account.
 
-The codes that generates the tasks can be found [here](https://github.com/wielandb/maproulette-tagfixes/tree/main/challenges/imgur404). The challenge was discussed [here]().
+The code that generates the tasks can be found [here](https://github.com/wielandb/maproulette-tagfixes/tree/main/challenges/imgur404). The challenge was discussed [here]().
