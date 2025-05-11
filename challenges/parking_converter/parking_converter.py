@@ -263,7 +263,7 @@ def convert_base_parking_tags(tags):
             tagChanges["parking:lane:both"] = None
             if "parking:lane:both:parallel" in tags:
                 if tags["parking:lane:both:parallel"] == "on_street":
-                    tagChanges["parking:both"] = "on_street"
+                    tagChanges["parking:both"] = "lane"
                     tagChanges["parking:lane:both:parallel"] = None
                 elif tags["parking:lane:both:parallel"] == "half_on_kerb":
                     tagChanges["parking:both"] = "half_on_kerb"
@@ -286,7 +286,7 @@ def convert_base_parking_tags(tags):
             tagChanges["parking:lane:both"] = None
             if "parking:lane:both:diagonal" in tags:
                 if tags["parking:lane:both:diagonal"] == "on_street":
-                    tagChanges["parking:both"] = "on_street"
+                    tagChanges["parking:both"] = "lane"
                     tagChanges["parking:lane:both:diagonal"] = None
                 elif tags["parking:lane:both:diagonal"] == "half_on_kerb":
                     tagChanges["parking:both"] = "half_on_kerb"
@@ -298,7 +298,7 @@ def convert_base_parking_tags(tags):
                     tagChanges["parking:both"] = "street_side"
                     tagChanges["parking:lane:both:diagonal"] = None
                 elif tags["parking:lane:both:diagonal"] == "painted_area_only":
-                    tagChanges["parking:both"] = "on_street"
+                    tagChanges["parking:both"] = "lane"
                     tagChanges["parking:both:markings"] = "yes"
                     tagChanges["parking:lane:both:diagonal"] = None
                 elif tags["parking:lane:both:diagonal"] == "marked":
@@ -309,7 +309,7 @@ def convert_base_parking_tags(tags):
             tagChanges["parking:lane:both"] = None
             if "parking:lane:both:perpendicular" in tags:
                 if tags["parking:lane:both:perpendicular"] == "on_street":
-                    tagChanges["parking:both"] = "on_street"
+                    tagChanges["parking:both"] = "lane"
                     tagChanges["parking:lane:both:perpendicular"] = None
                 elif tags["parking:lane:both:perpendicular"] == "half_on_kerb":
                     tagChanges["parking:both"] = "half_on_kerb"
@@ -321,7 +321,7 @@ def convert_base_parking_tags(tags):
                     tagChanges["parking:both"] = "street_side"
                     tagChanges["parking:lane:both:perpendicular"] = None
                 elif tags["parking:lane:both:perpendicular"] == "painted_area_only":
-                    tagChanges["parking:both"] = "on_street"
+                    tagChanges["parking:both"] = "lane"
                     tagChanges["parking:both:markings"] = "yes"
                     tagChanges["parking:lane:both:perpendicular"] = None
                 elif tags["parking:lane:both:perpendicular"] == "marked":
@@ -350,7 +350,7 @@ def convert_base_parking_tags(tags):
             tagChanges["parking:lane:both"] = None
         elif tags["parking:lane:both"] == "marked" and "parking:lane:both:marked" in tags:
             if tags["parking:lane:both:marked"] == "on_street":
-                tagChanges["parking:both"] = "on_street"
+                tagChanges["parking:both"] = "lane"
                 tagChanges["parking:both:markings"] = "yes"
                 tagChanges["parking:lane:both:marked"] = None
             elif tags["parking:lane:both:marked"] == "half_on_kerb":

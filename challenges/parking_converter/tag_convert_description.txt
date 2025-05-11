@@ -1,8 +1,8 @@
 """
 Parallel on_street
-{"parking:lane:right":"parallel", "parking:lane:right:parallel":"on_street"} -> {"parking:right":"on_street", "parking:right:orientation":"parallel"}
-{"parking:lane:left":"parallel", "parking:lane:left:parallel":"on_street"} -> {"parking:left":"on_street", "parking:left:orientation":"parallel"}
-{"parking:lane:both":"parallel", "parking:lane:both:parallel":"on_street"} -> {"parking:both":"on_street", "parking:both:orientation":"parallel"}
+{"parking:lane:right":"parallel", "parking:lane:right:parallel":"on_street"} -> {"parking:right":"lane", "parking:right:orientation":"parallel"}
+{"parking:lane:left":"parallel", "parking:lane:left:parallel":"on_street"} -> {"parking:left":"lane", "parking:left:orientation":"parallel"}
+{"parking:lane:both":"parallel", "parking:lane:both:parallel":"on_street"} -> {"parking:both":"lane", "parking:both:orientation":"parallel"}
 
 Parallel half_on_kerb
 {"parking:lane:right":"parallel", "parking:lane:right:parallel":"half_on_kerb"} -> {"parking:right":"half_on_kerb", "parking:right:orientation":"parallel"}
@@ -40,9 +40,9 @@ diagonal street_side
 {"parking:lane:both":"diagonal", "parking:lane:both:diagonal":"street_side"} -> {"parking:both":"street_side", "parking:both:orientation":"diagonal"}
 
 perpendicular on_street
-{"parking:lane:right":"perpendicular", "parking:lane:right:perpendicular":"on_street"} -> {"parking:right":"on_street", "parking:right:orientation":"perpendicular"}
-{"parking:lane:left":"perpendicular", "parking:lane:left:perpendicular":"on_street"} -> {"parking:left":"on_street", "parking:left:orientation":"perpendicular"}
-{"parking:lane:both":"perpendicular", "parking:lane:both:perpendicular":"on_street"} -> {"parking:both":"on_street", "parking:both:orientation":"perpendicular"}
+{"parking:lane:right":"perpendicular", "parking:lane:right:perpendicular":"on_street"} -> {"parking:right":"lane", "parking:right:orientation":"perpendicular"}
+{"parking:lane:left":"perpendicular", "parking:lane:left:perpendicular":"on_street"} -> {"parking:left":"lane", "parking:left:orientation":"perpendicular"}
+{"parking:lane:both":"perpendicular", "parking:lane:both:perpendicular":"on_street"} -> {"parking:both":"lane", "parking:both:orientation":"perpendicular"}
 
 perpendicular half_on_kerb
 {"parking:lane:right":"perpendicular", "parking:lane:right:perpendicular":"half_on_kerb"} -> {"parking:right":"half_on_kerb", "parking:right:orientation":"perpendicular"}
@@ -60,19 +60,19 @@ perpendicular street_side
 {"parking:lane:both":"perpendicular", "parking:lane:both:perpendicular":"street_side"} -> {"parking:both":"street_side", "parking:both:orientation":"perpendicular"}
 
 perpendicular painted_area_only (becomes "on_street" with additional tag "parking:SIDE:markings=yes")
-{"parking:lane:right":"perpendicular", "parking:lane:right:perpendicular":"painted_area_only"} -> {"parking:right":"on_street", "parking:right:orientation":"perpendicular", "parking:right:markings":"yes"}
-{"parking:lane:left":"perpendicular", "parking:lane:left:perpendicular":"painted_area_only"} -> {"parking:left":"on_street", "parking:left:orientation":"perpendicular", "parking:left:markings":"yes"}
-{"parking:lane:both":"perpendicular", "parking:lane:both:perpendicular":"painted_area_only"} -> {"parking:both":"on_street", "parking:both:orientation":"perpendicular", "parking:both:markings":"yes"}
+{"parking:lane:right":"perpendicular", "parking:lane:right:perpendicular":"painted_area_only"} -> {"parking:right":"lane", "parking:right:orientation":"perpendicular", "parking:right:markings":"yes"}
+{"parking:lane:left":"perpendicular", "parking:lane:left:perpendicular":"painted_area_only"} -> {"parking:left":"lane", "parking:left:orientation":"perpendicular", "parking:left:markings":"yes"}
+{"parking:lane:both":"perpendicular", "parking:lane:both:perpendicular":"painted_area_only"} -> {"parking:both":"lane", "parking:both:orientation":"perpendicular", "parking:both:markings":"yes"}
 
 diagnoal painted_area_only (becomes "on_street" with additional tag "parking:SIDE:markings=yes")
-{"parking:lane:right":"diagonal", "parking:lane:right:diagonal":"painted_area_only"} -> {"parking:right":"on_street", "parking:right:orientation":"diagonal", "parking:right:markings":"yes"}
-{"parking:lane:left":"diagonal", "parking:lane:left:diagonal":"painted_area_only"} -> {"parking:left":"on_street", "parking:left:orientation":"diagonal", "parking:left:markings":"yes"}
-{"parking:lane:both":"diagonal", "parking:lane:both:diagonal":"painted_area_only"} -> {"parking:both":"on_street", "parking:both:orientation":"diagonal", "parking:both:markings":"yes"}
+{"parking:lane:right":"diagonal", "parking:lane:right:diagonal":"painted_area_only"} -> {"parking:right":"lane", "parking:right:orientation":"diagonal", "parking:right:markings":"yes"}
+{"parking:lane:left":"diagonal", "parking:lane:left:diagonal":"painted_area_only"} -> {"parking:left":"lane", "parking:left:orientation":"diagonal", "parking:left:markings":"yes"}
+{"parking:lane:both":"diagonal", "parking:lane:both:diagonal":"painted_area_only"} -> {"parking:both":"lane", "parking:both:orientation":"diagonal", "parking:both:markings":"yes"}
 
 parallel painted_area_only (becomes "on_street" with additional tag "parking:SIDE:markings=yes")
-{"parking:lane:right":"parallel", "parking:lane:right:parallel":"painted_area_only"} -> {"parking:right":"on_street", "parking:right:orientation":"parallel", "parking:right:markings":"yes"}
-{"parking:lane:left":"parallel", "parking:lane:left:parallel":"painted_area_only"} -> {"parking:left":"on_street", "parking:left:orientation":"parallel", "parking:left:markings":"yes"}
-{"parking:lane:both":"parallel", "parking:lane:both:parallel":"painted_area_only"} -> {"parking:both":"on_street", "parking:both:orientation":"parallel", "parking:both:markings":"yes"}
+{"parking:lane:right":"parallel", "parking:lane:right:parallel":"painted_area_only"} -> {"parking:right":"lane", "parking:right:orientation":"parallel", "parking:right:markings":"yes"}
+{"parking:lane:left":"parallel", "parking:lane:left:parallel":"painted_area_only"} -> {"parking:left":"lane", "parking:left:orientation":"parallel", "parking:left:markings":"yes"}
+{"parking:lane:both":"parallel", "parking:lane:both:parallel":"painted_area_only"} -> {"parking:both":"lane", "parking:both:orientation":"parallel", "parking:both:markings":"yes"}
 
 no
 {"parking:lane:right":"no"} -> {"parking:right":"no"}
@@ -100,9 +100,9 @@ marked (becomes "parking:SIDE:markings=yes" as we do not know anything else)
 {"parking:lane:right":"marked"} -> {"parking:right:markings":"yes"}
 {"parking:lane:left":"marked"} -> {"parking:left:markings":"yes"}
 {"parking:lane:both":"marked"} -> {"parking:both:markings":"yes"}
-{"parking:lane:right":"marked", "parking:lane:right:marked":"on_street"} -> {"parking:right":"on_street", "parking:right:markings":"yes"}
-{"parking:lane:left":"marked", "parking:lane:left:marked":"on_street"} -> {"parking:left":"on_street", "parking:left:markings":"yes"}
-{"parking:lane:both":"marked", "parking:lane:both:marked":"on_street"} -> {"parking:both":"on_street", "parking:both:markings":"yes"}
+{"parking:lane:right":"marked", "parking:lane:right:marked":"on_street"} -> {"parking:right":"lane", "parking:right:markings":"yes"}
+{"parking:lane:left":"marked", "parking:lane:left:marked":"on_street"} -> {"parking:left":"lane", "parking:left:markings":"yes"}
+{"parking:lane:both":"marked", "parking:lane:both:marked":"on_street"} -> {"parking:both":"lane", "parking:both:markings":"yes"}
 {"parking:lane:right":"marked", "parking:lane:right:marked":"half_on_kerb"} -> {"parking:right":"half_on_kerb", "parking:right:markings":"yes"
 {"parking:lane:left":"marked", "parking:lane:left:marked":"half_on_kerb"} -> {"parking:left":"half_on_kerb", "parking:left:markings":"yes"
 {"parking:lane:both":"marked", "parking:lane:both:marked":"half_on_kerb"} -> {"parking:both":"half_on_kerb", "parking:both:markings":"yes"
