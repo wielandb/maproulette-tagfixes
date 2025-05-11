@@ -366,10 +366,20 @@ def convert_base_parking_tags(tags):
                 tagChanges["parking:both:markings"] = "yes"
                 tagChanges["parking:lane:both:marked"] = None
     # Other things like conditions
-    ## Generic yes in base tag needed
+    ## Ensure base parking tag when any sub-tag exists under parking:<side> in converted tags
+    ## Said differently: if there is a tag parking:<side>:<something>, then there should also a tag set parking:<side> with value "yes" (but only if the tag does not exist already with a more specific value)
     for side in ["right", "left", "both"]:
-        if any([True for key in tags if f"parking:{side}" in key]) and not "parking:"+side in tags:
-            tagChanges["parking:"+side] = "yes"
+        base = f"parking:{side}"
+        is_basetag_set = tagChanges.get(base) is not None
+        basetag_needs_to_be_set = False
+        for key in tagChanges:
+            if key.startswith(base + ":") and key != base:
+                if not is_basetag_set:
+                    basetag_needs_to_be_set = True # Don't change the dict during iteration
+        
+        if basetag_needs_to_be_set:
+            tagChanges[base] = "yes"
+
     ## Free parking
     if "parking:condition:right" in tags and tags["parking:condition:right"] == "free":
         tagChanges["parking:right:fee"] = "no"
