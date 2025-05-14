@@ -444,6 +444,44 @@ def convert_base_parking_tags(tags):
         tagChanges["parking:both"] = "no"
         tagChanges["parking:both:restriction"] = "no_stopping"
         tagChanges["parking:condition:both"] = None
+    
+    ## Combine left and right tags if they are the same
+    if "parking:right" in tagChanges and "parking:left" in tagChanges and tagChanges["parking:right"] == tagChanges["parking:left"]:
+        tagChanges["parking:both"] = tagChanges["parking:right"]
+        tagChanges["parking:right"] = None
+        tagChanges["parking:left"] = None
+    if "parking:right:orientation" in tagChanges and "parking:left:orientation" in tagChanges and tagChanges["parking:right:orientation"] == tagChanges["parking:left:orientation"]:
+        tagChanges["parking:both:orientation"] = tagChanges["parking:right:orientation"]
+        tagChanges["parking:right:orientation"] = None
+        tagChanges["parking:left:orientation"] = None
+    if "parking:right:markings" in tagChanges and "parking:left:markings" in tagChanges and tagChanges["parking:right:markings"] == tagChanges["parking:left:markings"]:
+        tagChanges["parking:both:markings"] = tagChanges["parking:right:markings"]
+        tagChanges["parking:right:markings"] = None
+        tagChanges["parking:left:markings"] = None
+    if "parking:right:fee" in tagChanges and "parking:left:fee" in tagChanges and tagChanges["parking:right:fee"] == tagChanges["parking:left:fee"]:
+        tagChanges["parking:both:fee"] = tagChanges["parking:right:fee"]
+        tagChanges["parking:right:fee"] = None
+        tagChanges["parking:left:fee"] = None
+    if "parking:right:restriction" in tagChanges and "parking:left:restriction" in tagChanges and tagChanges["parking:right:restriction"] == tagChanges["parking:left:restriction"]:
+        tagChanges["parking:both:restriction"] = tagChanges["parking:right:restriction"]
+        tagChanges["parking:right:restriction"] = None
+        tagChanges["parking:left:restriction"] = None
+    if "parking:right:maxstay" in tagChanges and "parking:left:maxstay" in tagChanges and tagChanges["parking:right:maxstay"] == tagChanges["parking:left:maxstay"]:
+        tagChanges["parking:both:maxstay"] = tagChanges["parking:right:maxstay"]
+        tagChanges["parking:right:maxstay"] = None
+        tagChanges["parking:left:maxstay"] = None
+    if "parking:right:maxstay:conditional" in tagChanges and "parking:left:maxstay:conditional" in tagChanges and tagChanges["parking:right:maxstay:conditional"] == tagChanges["parking:left:maxstay:conditional"]:
+        tagChanges["parking:both:maxstay:conditional"] = tagChanges["parking:right:maxstay:conditional"]
+        tagChanges["parking:right:maxstay:conditional"] = None
+        tagChanges["parking:left:maxstay:conditional"] = None
+    if "parking:right:authentication:disc" in tagChanges and "parking:left:authentication:disc" in tagChanges and tagChanges["parking:right:authentication:disc"] == tagChanges["parking:left:authentication:disc"]:
+        tagChanges["parking:both:authentication:disc"] = tagChanges["parking:right:authentication:disc"]
+        tagChanges["parking:right:authentication:disc"] = None
+        tagChanges["parking:left:authentication:disc"] = None
+    if "parking:right:authentication:disc:conditional" in tagChanges and "parking:left:authentication:disc:conditional" in tagChanges and tagChanges["parking:right:authentication:disc:conditional"] == tagChanges["parking:left:authentication:disc:conditional"]:
+        tagChanges["parking:both:authentication:disc:conditional"] = tagChanges["parking:right:authentication:disc:conditional"]
+        tagChanges["parking:right:authentication:disc:conditional"] = None
+        tagChanges["parking:left:authentication:disc:conditional"] = None
     return tagChanges
 
 
