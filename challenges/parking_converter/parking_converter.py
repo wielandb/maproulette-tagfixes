@@ -418,6 +418,19 @@ def convert_base_parking_tags(tags):
             tagChanges["parking:condition:both"] = None
             tagChanges["parking:condition:both:maxstay"] = None
             tagChanges["parking:condition:both:time_interval"] = None
+    ## condition: ticket
+    if "parking:condition:right" in tags and tags["parking:condition:right"] == "ticket":
+        tagChanges["parking:right:fee"] = "yes"
+        tagChanges["parking:right:authentication:ticket"] = "yes"
+        tagChanges["parking:condition:right"] = None
+    if "parking:condition:left" in tags and tags["parking:condition:left"] == "ticket":
+        tagChanges["parking:left:fee"] = "yes"
+        tagChanges["parking:left:authentication:ticket"] = "yes"
+        tagChanges["parking:condition:left"] = None
+    if "parking:condition:both" in tags and tags["parking:condition:both"] == "ticket":
+        tagChanges["parking:both:fee"] = "yes"
+        tagChanges["parking:both:authentication:ticket"] = "yes"
+        tagChanges["parking:condition:both"] = None
     ## condition: no_parking
     if "parking:condition:right" in tags and tags["parking:condition:right"] == "no_parking":
         tagChanges["parking:right"] = "no"
