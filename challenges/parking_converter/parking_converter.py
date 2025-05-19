@@ -457,7 +457,7 @@ def convert_base_parking_tags(tags):
         tagChanges["parking:both"] = "no"
         tagChanges["parking:both:restriction"] = "no_stopping"
         tagChanges["parking:condition:both"] = None
-    # capacity: parking:lane:<side>:capacity -> parking:<side>:capacity
+    # capacity: parking:lane:<side>:capacity OR parking:lane:<side>:capacity -> parking:<side>:capacity
     if "parking:lane:right:capacity" in tags:
         tagChanges["parking:right:capacity"] = tags["parking:lane:right:capacity"]
         tagChanges["parking:lane:right:capacity"] = None
@@ -467,6 +467,15 @@ def convert_base_parking_tags(tags):
     if "parking:lane:both:capacity" in tags:
         tagChanges["parking:both:capacity"] = tags["parking:lane:both:capacity"]
         tagChanges["parking:lane:both:capacity"] = None
+    if "parking:condition:right:capacity" in tags:
+        tagChanges["parking:right:capacity"] = tags["parking:condition:right:capacity"]
+        tagChanges["parking:condition:right:capacity"] = None
+    if "parking:condition:left:capacity" in tags:
+        tagChanges["parking:left:capacity"] = tags["parking:condition:left:capacity"]
+        tagChanges["parking:condition:left:capacity"] = None
+    if "parking:condition:both:capacity" in tags:
+        tagChanges["parking:both:capacity"] = tags["parking:condition:both:capacity"]
+        tagChanges["parking:condition:both:capacity"] = None
     
     
     ## Combine left and right tags if they are the same
