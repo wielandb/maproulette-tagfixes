@@ -214,3 +214,41 @@ def getElementCenterPoint(element):
 def getElementGeometry(element):
     newElement = createGeometryFromElement(element)
     return newElement["simpleGeometry"]
+
+
+def _element_was_modified_by_user(osmType, osmId, username):
+    """Return True if the given user appears in the history of the element."""
+    url = f"https://api.openstreetmap.org/api/0.6/{osmType}/{osmId}/history.json"
+    response = requests.get(url)
+    if response.status_code != 200:
+        return False
+    try:
+        versions = response.json().get("elements", [])
+    except ValueError:
+        return False
+    for version in versions:
+        if version.get("user") == username:
+            return True
+    return False
+
+
+def filterElementsByUser(elements, username):
+    """Filter a list of elements keeping only those edited by *username*.
+
+    *elements* may contain Overpass-style dicts with ``type`` and ``id`` keys
+    or ``(type, id)`` tuples. The original objects are returned for elements
+    where the user has at least one version in the OSM history.
+    """
+
+    filtered = []
+    for element in elements:
+        if isinstance(element, tuple):
+            osmType, osmId = element
+        else:
+            osmType = element.get("type")
+            osmId = element.get("id")
+        if not osmType or not osmId:
+            continue
+        if _element_was_modified_by_user(osmType, osmId, username):
+            filtered.append(element)
+    return filtered
