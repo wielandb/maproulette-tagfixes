@@ -1,7 +1,9 @@
 import os, sys, json
 from dataclasses import dataclass, field
-from typing import List, Dict
+from typing import List, Dict, Optional, Tuple
 import requests
+import base64
+from xml.etree.ElementTree import Element, SubElement, tostring
 
 def TagsAsMdTable(tags):
     # This function takes a dict of tags and returns a markdown table with the tags
@@ -71,10 +73,10 @@ class TagFix():
             raise ValueError("tagsToSet must be a dict e.g. {'tag1': 'value1', 'tag2': 'value2'}")
         
     def to_dict(self):
-        return {"meta": 
-            {"version": 2, "type": 1}, 
+        return {"meta":
+            {"version": 2, "type": 1},
             "operations": [
-                {"operationType": "modifyElement", 
+                {"operationType": "modifyElement",
                 "data": {
                     "id": str(self.osmType) + "/" + str(self.osmId),  
                     "operations": [
@@ -88,6 +90,35 @@ class TagFix():
                         }
                     ]
                 }}]}
+
+
+@dataclass
+class ChangeFile:
+    """Represents cooperative work of type 2 using a base64 encoded OSC file."""
+
+    base64_content: str
+
+    @classmethod
+    def from_osc_string(cls, osc_string: str):
+        encoded = base64.b64encode(osc_string.encode("utf-8")).decode("utf-8")
+        return cls(encoded)
+
+    @classmethod
+    def from_file(cls, file_path: str):
+        with open(file_path, "rb") as f:
+            encoded = base64.b64encode(f.read()).decode("utf-8")
+        return cls(encoded)
+
+    def to_dict(self):
+        return {
+            "meta": {"version": 2, "type": 2},
+            "file": {
+                "type": "xml",
+                "format": "osc",
+                "encoding": "base64",
+                "content": self.base64_content,
+            },
+        }
 
 @dataclass
 class Task:
@@ -214,3 +245,52 @@ def getElementCenterPoint(element):
 def getElementGeometry(element):
     newElement = createGeometryFromElement(element)
     return newElement["simpleGeometry"]
+
+
+def create_relation_add_member_osc(
+    relation_id: int,
+    member_type: str,
+    member_id: int,
+    position: int = -1,
+    role: str = "",
+    existing_members: Optional[List[Tuple[str, int, str]]] = None,
+) -> str:
+    """Create an OSC XML string that adds a member to a relation.
+
+    Parameters
+    ----------
+    relation_id : int
+        ID of the relation to modify.
+    member_type : str
+        Type of the member ("node", "way" or "relation").
+    member_id : int
+        ID of the member element.
+    position : int, optional
+        Index at which the member should be inserted. ``-1`` means append.
+    role : str, optional
+        Role of the member within the relation.
+    existing_members : list of tuple, optional
+        Existing relation members as ``(type, id, role)`` tuples. If provided, the
+        new member is inserted at ``position`` in this list and the full list is
+        written to the OSC file.
+    """
+
+    # Prepare member list and insert new member at the requested position
+    if existing_members is None:
+        existing_members = []
+
+    # clamp position within valid range; ``-1`` means append
+    if position < 0 or position > len(existing_members):
+        position = len(existing_members)
+
+    members = existing_members.copy()
+    members.insert(position, (member_type, member_id, role))
+
+    root = Element("osmChange", version="0.6", generator="maproulette-tagfixes")
+    modify = SubElement(root, "modify")
+    rel = SubElement(modify, "relation", id=str(relation_id))
+    for m_type, m_id, m_role in members:
+        attrs = {"type": m_type, "ref": str(m_id), "role": m_role}
+        SubElement(rel, "member", **attrs)
+
+    return tostring(root, encoding="utf-8").decode("utf-8")
