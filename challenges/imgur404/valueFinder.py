@@ -3,6 +3,7 @@ import json
 import requests
 import osmium
 import sys
+import time
 from typing import Dict, List, Optional, Literal
 from dataclasses import dataclass, asdict
 from tqdm import tqdm
@@ -16,6 +17,24 @@ MATCHES_FILE = 'matches.json'
 SEARCH_SEQUENCE = 'i.imgur.com'
 OVERPASS_API = "https://overpass-api.de/api/interpreter"
 PROCCESSED_URLS = []
+OVERPASS_RETRY_DELAY = 10
+OVERPASS_RETRY_COUNT = 5
+
+
+def post_overpass_query(query: str) -> Optional[dict]:
+    """Post an Overpass query with retry delay on failure."""
+    for attempt in range(1, OVERPASS_RETRY_COUNT + 1):
+        try:
+            response = requests.post(OVERPASS_API, data={"data": query}, timeout=60)
+            response.raise_for_status()
+            return response.json()
+        except requests.RequestException as exc:
+            print(f"Overpass request failed (attempt {attempt}/{OVERPASS_RETRY_COUNT}): {exc}")
+            if attempt < OVERPASS_RETRY_COUNT:
+                print(f"Retrying in {OVERPASS_RETRY_DELAY} seconds...")
+                time.sleep(OVERPASS_RETRY_DELAY)
+    print("Giving up after multiple Overpass request failures.")
+    return None
 
 
 class MatchType(str, Enum):
@@ -51,32 +70,29 @@ class ValueFinderHandler(osmium.SimpleHandler):
         {osm_type}({osm_id});
         out center;
         """
-        try:
-            response = requests.post(OVERPASS_API, data={"data": query})
-            response.raise_for_status()
-            data = response.json()
-            print(data)
-            if data["elements"]:
-                element = data["elements"][0]
-                if "center" in element:
-                    return Center(lat=element["center"]["lat"], lon=element["center"]["lon"])
-                elif "lat" in element:
-                    return Center(lat=element["lat"], lon=element["lon"])
-                elif "members" in element:
-                    # if there are no coordinates, then its a relation of relations where overpass cannot find a center.
-                    # In this case, we recursively call the function for each member until we find something that we can use as a display center.
-                    center = None
-                    for member in element["members"]:
-                        if member["type"] == "node":
-                            center = Center(lat=member["lat"], lon=member["lon"])
+        data = post_overpass_query(query)
+        if not data:
+            return None
+        print(data)
+        if data["elements"]:
+            element = data["elements"][0]
+            if "center" in element:
+                return Center(lat=element["center"]["lat"], lon=element["center"]["lon"])
+            elif "lat" in element:
+                return Center(lat=element["lat"], lon=element["lon"])
+            elif "members" in element:
+                # if there are no coordinates, then its a relation of relations where overpass cannot find a center.
+                # In this case, we recursively call the function for each member until we find something that we can use as a display center.
+                center = None
+                for member in element["members"]:
+                    if member["type"] == "node":
+                        center = Center(lat=member["lat"], lon=member["lon"])
+                        break
+                    elif member["type"] in ["way", "relation"]:
+                        center = self.get_center_coordinates(member["type"], member["ref"])
+                        if center:
                             break
-                        elif member["type"] in ["way", "relation"]:
-                            center = self.get_center_coordinates(member["type"], member["ref"])
-                            if center:
-                                break
-                    return center
-        except Exception as e:
-            print(f"Failed to get center coordinates for {osm_type}/{osm_id}: {e}")
+                return center
         return None
 
 
@@ -265,18 +281,15 @@ def get_center_coordinates(osm_type: str, osm_id: int) -> Optional[Center]:
     {osm_type}({osm_id});
     out center;
     """
-    try:
-        response = requests.post(OVERPASS_API, data={"data": query})
-        response.raise_for_status()
-        data = response.json()
-        if data["elements"]:
-            element = data["elements"][0]
-            if "center" in element:
-                return Center(lat=element["center"]["lat"], lon=element["center"]["lon"])
-            elif "lat" in element:
-                return Center(lat=element["lat"], lon=element["lon"])
-    except Exception as e:
-        print(f"Failed to get center coordinates for {osm_type}/{osm_id}: {e}")
+    data = post_overpass_query(query)
+    if not data:
+        return None
+    if data["elements"]:
+        element = data["elements"][0]
+        if "center" in element:
+            return Center(lat=element["center"]["lat"], lon=element["center"]["lon"])
+        elif "lat" in element:
+            return Center(lat=element["lat"], lon=element["lon"])
     return None
 
 

@@ -162,6 +162,12 @@ static_map_size = "480x312"
 # Get all the way ids from ways that contain a highway=give_way node by getting https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A250%5D%3B%0Aarea%28id%3A3600051477%29-%3E.searchArea%3B%0Anode%5B%22highway%22%3D%22give_way%22%5D%5B%21%22direction%22%5D%28area.searchArea%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B
 print("Downloading data from Overpass API...")
 response = requests.get("https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A250%5D%3B%0Aarea%28id%3A3600051477%29-%3E.searchArea%3B%0Anode%5B%22highway%22%3D%22give_way%22%5D%5B%21%22direction%22%5D%28area.searchArea%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B")
+print(f"Overpass response status: {response.status_code} {response.reason}")
+print(f"Response URL: {response.url}")
+print(f"Response headers: {dict(response.headers)}")
+print(f"Response body length: {len(response.text)}")
+snippet = response.text[:1000].replace('\n', ' ') if response.text else ''
+print(f"Response body snippet (first 1000 chars): {snippet!r}")
 data_handler = OSMDataHandler(response.text)
 ways = data_handler.get_ways()
 print("Sorting ways...")
