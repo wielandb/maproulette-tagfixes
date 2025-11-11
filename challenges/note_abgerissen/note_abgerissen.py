@@ -27,7 +27,9 @@ class DateCandidate:
 
 @dataclass
 class HistoryInfo:
-    building_value: Optional[str]
+    tag_key: Optional[str]
+    tag_value: Optional[str]
+    name_value: Optional[str]
     last_timestamp: Optional[datetime]
 
 
@@ -113,6 +115,8 @@ FALLBACK_PART1 = """1. 🏗️ Wenn auf einem der verfügbaren Luftbilder das ab
 FALLBACK_PART2 = """2. 🗑️ Wenn auf KEINEM der verfügbaren Luftbilder das Objekt zu sehen ist:
    - Lösche das Objekt."""
 
+NO_TAGFIX_MESSAGE = "⚠️ Für dieses Objekt stehen keine TagFix-Vorschläge zur Verfügung; bitte überspringe es."
+
 FIVE_YEARS = timedelta(days=365 * 5)
 
 
@@ -166,22 +170,35 @@ def fetch_history_info(osm_type: str, osm_id: int) -> HistoryInfo:
     try:
         response = requests.get(url, timeout=30)
     except requests.RequestException:
-        return HistoryInfo(None, None)
+        return HistoryInfo(None, None, None)
 
     if response.status_code != 200:
-        return HistoryInfo(None, None)
+        return HistoryInfo(None, None, None)
     try:
         payload = response.json()
     except ValueError:
-        return HistoryInfo(None, None)
+        return HistoryInfo(None, None, None)
 
     versions = payload.get("elements", [])
-    building_value: Optional[str] = None
+    name_value: Optional[str] = None
+    for version in reversed(versions):
+        tags = version.get("tags") or {}
+        if name_value is None and "name" in tags:
+            name_value = tags["name"]
+
+    history_tag_key: Optional[str] = None
+    history_tag_value: Optional[str] = None
     for version in reversed(versions):
         tags = version.get("tags") or {}
         building = tags.get("building")
         if building:
-            building_value = building
+            history_tag_key = "building"
+            history_tag_value = building
+            break
+        highway = tags.get("highway")
+        if highway:
+            history_tag_key = "highway"
+            history_tag_value = highway
             break
 
     last_timestamp: Optional[datetime] = None
@@ -191,7 +208,7 @@ def fetch_history_info(osm_type: str, osm_id: int) -> HistoryInfo:
             last_timestamp = ts
             break
 
-    return HistoryInfo(building_value, last_timestamp)
+    return HistoryInfo(history_tag_key, history_tag_value, name_value, last_timestamp)
 
 
 def should_show_deletion_hint(last_timestamp: Optional[datetime]) -> bool:
@@ -203,9 +220,11 @@ def should_show_deletion_hint(last_timestamp: Optional[datetime]) -> bool:
     return (now - last_timestamp) > FIVE_YEARS
 
 
-def build_instruction_text(building_value: Optional[str], date_candidate: Optional[DateCandidate], show_deletion_hint: bool) -> str:
-    if not building_value and not date_candidate:
-        text = [FALLBACK_INTRO, "", FALLBACK_PART1]
+def build_instruction_text(history_info: HistoryInfo, date_candidate: Optional[DateCandidate], show_deletion_hint: bool) -> str:
+    tag_key = history_info.tag_key
+    tag_value = history_info.tag_value
+    if not tag_value:
+        text = [FALLBACK_INTRO, "", NO_TAGFIX_MESSAGE, "", FALLBACK_PART1]
         if show_deletion_hint:
             text.append("")
             text.append(FALLBACK_PART2)
@@ -218,8 +237,8 @@ def build_instruction_text(building_value: Optional[str], date_candidate: Option
         ""
     ]
 
-    if building_value:
-        lines.append(f"🏗️ Die Historie nennt zuletzt `building={building_value}`; bestätige oder verbessere `razed:building={building_value}`.")
+    if tag_key:
+        lines.append(f"🏗️ Die Historie nennt zuletzt `{tag_key}={tag_value}`; bestätige oder verbessere `razed:building={tag_value}`.")
     if date_candidate:
         lines.append(f"📅 In den Tags wurde der Zeitpunkt `{date_candidate.normalized}` erkannt; bestätige oder korrigiere `end_date={date_candidate.normalized}`.")
 
@@ -230,14 +249,14 @@ def build_instruction_text(building_value: Optional[str], date_candidate: Option
     return "\n".join(lines)
 
 
-def build_tagfix(osm_type: str, osm_id: int, building_value: Optional[str], date_candidate: Optional[DateCandidate]) -> Optional[mrcb.TagFix]:
-    tags_to_set = {}
-    if building_value:
-        tags_to_set["razed:building"] = building_value
+def build_tagfix(osm_type: str, osm_id: int, history_info: HistoryInfo, date_candidate: Optional[DateCandidate]) -> Optional[mrcb.TagFix]:
+    if not history_info.tag_value:
+        return None
+    tags_to_set = {
+        "razed:building": history_info.tag_value
+    }
     if date_candidate:
         tags_to_set["end_date"] = date_candidate.normalized
-    if not tags_to_set:
-        return None
     return mrcb.TagFix(osm_type, osm_id, tags_to_set)
 
 
@@ -271,13 +290,13 @@ out tags center;
         history_info = fetch_history_info(element["type"], element["id"])
 
         instruction_text = build_instruction_text(
-            history_info.building_value,
+            history_info,
             date_candidate,
             should_show_deletion_hint(history_info.last_timestamp)
         )
 
         feature = build_main_feature(element, instruction_text)
-        cooperative = build_tagfix(element["type"], element["id"], history_info.building_value, date_candidate)
+        cooperative = build_tagfix(element["type"], element["id"], history_info, date_candidate)
         if cooperative:
             task = mrcb.Task(feature, cooperativeWork=cooperative)
         else:
