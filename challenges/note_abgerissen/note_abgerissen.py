@@ -165,6 +165,13 @@ def _parse_osm_timestamp(value: Optional[str]) -> Optional[datetime]:
         return None
 
 
+def _valid_history_value(value: Optional[str]) -> bool:
+    if not value:
+        return False
+    normalized = value.lower().strip()
+    return normalized not in {"razed", "no"}
+
+
 def fetch_history_info(osm_type: str, osm_id: int) -> HistoryInfo:
     url = f"https://api.openstreetmap.org/api/0.6/{osm_type}/{osm_id}/history.json"
     try:
@@ -191,12 +198,12 @@ def fetch_history_info(osm_type: str, osm_id: int) -> HistoryInfo:
     for version in reversed(versions):
         tags = version.get("tags") or {}
         building = tags.get("building")
-        if building:
+        if building and _valid_history_value(building):
             history_tag_key = "building"
             history_tag_value = building
             break
         highway = tags.get("highway")
-        if highway:
+        if highway and _valid_history_value(highway):
             history_tag_key = "highway"
             history_tag_value = highway
             break
@@ -237,8 +244,13 @@ def build_instruction_text(history_info: HistoryInfo, date_candidate: Optional[D
         ""
     ]
 
+    razed_tag = "razed:building"
+    if tag_key == "highway":
+        razed_tag = "razed:highway"
     if tag_key:
-        lines.append(f"🏗️ Die Historie nennt zuletzt `{tag_key}={tag_value}`; bestätige oder verbessere `razed:building={tag_value}`.")
+        lines.append(f"🏗️ Die Historie nennt zuletzt `{tag_key}={tag_value}`; bestätige oder verbessere `{razed_tag}={tag_value}`.")
+    if history_info.name_value:
+        lines.append(f"🧾 Die früheren Namen des Objekts waren `{history_info.name_value}`; bestätige oder verbessere `old_name={history_info.name_value}`.")
     if date_candidate:
         lines.append(f"📅 In den Tags wurde der Zeitpunkt `{date_candidate.normalized}` erkannt; bestätige oder korrigiere `end_date={date_candidate.normalized}`.")
 
@@ -252,9 +264,14 @@ def build_instruction_text(history_info: HistoryInfo, date_candidate: Optional[D
 def build_tagfix(osm_type: str, osm_id: int, history_info: HistoryInfo, date_candidate: Optional[DateCandidate]) -> Optional[mrcb.TagFix]:
     if not history_info.tag_value:
         return None
+    razed_tag = "razed:building"
+    if history_info.tag_key == "highway":
+        razed_tag = "razed:highway"
     tags_to_set = {
-        "razed:building": history_info.tag_value
+        razed_tag: history_info.tag_value
     }
+    if history_info.name_value:
+        tags_to_set["old_name"] = history_info.name_value
     if date_candidate:
         tags_to_set["end_date"] = date_candidate.normalized
     return mrcb.TagFix(osm_type, osm_id, tags_to_set)
