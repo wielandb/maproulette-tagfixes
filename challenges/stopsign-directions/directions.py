@@ -8,7 +8,7 @@ from time import sleep
 
 import json
 
-SHORT_WAY_LENGTH_THRESHOLD_METERS = 30
+SHORT_WAY_LENGTH_THRESHOLD_METERS = 50
 
 
 def haversine_distance(lat1, lon1, lat2, lon2):
