@@ -67,6 +67,10 @@ class OSMDataHandler:
         node_index = node_ids.index(node_id)
         distance_to_start = node_index
         distance_to_end = len(node_ids) - 1 - node_index
+        if distance_to_start == distance_to_end:
+            length_to_start = self._calculate_path_length_meters(node_ids[:node_index + 1])
+            length_to_end = self._calculate_path_length_meters(node_ids[node_index:])
+            return "backward" if length_to_start < length_to_end else "forward"
         return "backward" if distance_to_start < distance_to_end else "forward"
 
     def determine_direction_by_way_intersections(self, give_way_node_id, way_id):
@@ -81,7 +85,7 @@ class OSMDataHandler:
         nodes_after = node_ids[give_way_index + 1:]
         before_connections = self.count_additional_way_memberships(nodes_before)
         after_connections = self.count_additional_way_memberships(nodes_after)
-        return "backward" if before_connections > after_connections else "forward"
+        return "forward" if before_connections > after_connections else "backward"
 
     def count_additional_way_memberships(self, node_ids):
         total = 0
@@ -94,6 +98,11 @@ class OSMDataHandler:
         if not way:
             raise ValueError(f"Way {way_id} not found.")
         node_ids = way["nodes"]
+        if len(node_ids) < 2:
+            return 0.0
+        return self._calculate_path_length_meters(node_ids)
+
+    def _calculate_path_length_meters(self, node_ids):
         if len(node_ids) < 2:
             return 0.0
         total_length = 0.0
