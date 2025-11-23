@@ -8,6 +8,20 @@ from time import sleep
 
 import json
 
+SHORT_WAY_LENGTH_THRESHOLD_METERS = 30
+
+
+def haversine_distance(lat1, lon1, lat2, lon2):
+    R = 6371000  # Earth radius in meters
+    phi1 = math.radians(lat1)
+    phi2 = math.radians(lat2)
+    delta_phi = math.radians(lat2 - lat1)
+    delta_lambda = math.radians(lon2 - lon1)
+    a = math.sin(delta_phi / 2) ** 2 + math.cos(phi1) * math.cos(phi2) * math.sin(delta_lambda / 2) ** 2
+    c = 2 * math.atan2(math.sqrt(a), math.sqrt(1 - a))
+    return R * c
+
+
 class OSMDataHandler:
     def __init__(self, json_data):
         self.data = json.loads(json_data)
@@ -16,12 +30,20 @@ class OSMDataHandler:
         self.ways = {way["id"]: way for way in self.get_ways()}
         # Create a dictionary for the nodes for faster access
         self.nodes = {node["id"]: node for node in self.get_nodes()}
+        self.node_way_counts = self._calculate_node_way_counts()
     
     def get_nodes(self):
         return [element for element in self.elements if element["type"] == "node"]
     
     def get_ways(self):
         return [element for element in self.elements if element["type"] == "way"]
+
+    def _calculate_node_way_counts(self):
+        counts = {}
+        for way in self.get_ways():
+            for node_id in way.get("nodes", []):
+                counts[node_id] = counts.get(node_id, 0) + 1
+        return counts
     
     def find_node_by_id(self, node_id):
         return self.nodes.get(node_id, None)
@@ -29,15 +51,58 @@ class OSMDataHandler:
     def find_way_by_id(self, way_id):
         return self.ways.get(way_id, None)
 
-    def determine_give_way_direction(self, give_way_node_id, way_id):
+    def determine_give_way_direction(self, give_way_node_id, way_id, short_way_threshold_meters=SHORT_WAY_LENGTH_THRESHOLD_METERS):
         way = self.find_way_by_id(way_id)
-        if give_way_node_id in way["nodes"]:
-            node_ids = way["nodes"]
-            give_way_index = node_ids.index(give_way_node_id)
-            distance_to_start = give_way_index
-            distance_to_end = len(node_ids) - 1 - give_way_index
-            return "backward" if distance_to_start < distance_to_end else "forward"
-        raise ValueError("Given node ID not found in any way.")
+        if not way:
+            raise ValueError(f"Way {way_id} not found.")
+        node_ids = way["nodes"]
+        if give_way_node_id not in node_ids:
+            raise ValueError("Given node ID not found in any way.")
+        way_length_meters = self.calculate_way_length_meters(way_id)
+        if way_length_meters < short_way_threshold_meters:
+            return self.determine_direction_by_way_intersections(give_way_node_id, way_id)
+        return self._determine_direction_by_node_position(give_way_node_id, node_ids)
+
+    def _determine_direction_by_node_position(self, node_id, node_ids):
+        node_index = node_ids.index(node_id)
+        distance_to_start = node_index
+        distance_to_end = len(node_ids) - 1 - node_index
+        return "backward" if distance_to_start < distance_to_end else "forward"
+
+    def determine_direction_by_way_intersections(self, give_way_node_id, way_id):
+        way = self.find_way_by_id(way_id)
+        if not way:
+            raise ValueError(f"Way {way_id} not found.")
+        node_ids = way["nodes"]
+        if give_way_node_id not in node_ids:
+            raise ValueError("Given node ID not found in any way.")
+        give_way_index = node_ids.index(give_way_node_id)
+        nodes_before = node_ids[:give_way_index]
+        nodes_after = node_ids[give_way_index + 1:]
+        before_connections = self.count_additional_way_memberships(nodes_before)
+        after_connections = self.count_additional_way_memberships(nodes_after)
+        return "backward" if before_connections > after_connections else "forward"
+
+    def count_additional_way_memberships(self, node_ids):
+        total = 0
+        for node_id in node_ids:
+            total += max(0, self.getNumberOfWaysNodeIsPartOf(node_id) - 1)
+        return total
+
+    def calculate_way_length_meters(self, way_id):
+        way = self.find_way_by_id(way_id)
+        if not way:
+            raise ValueError(f"Way {way_id} not found.")
+        node_ids = way["nodes"]
+        if len(node_ids) < 2:
+            return 0.0
+        total_length = 0.0
+        prev_lat, prev_lon = self.get_node_coordinates(node_ids[0])
+        for node_id in node_ids[1:]:
+            lat, lon = self.get_node_coordinates(node_id)
+            total_length += haversine_distance(prev_lat, prev_lon, lat, lon)
+            prev_lat, prev_lon = lat, lon
+        return total_length
 
     def calculate_rotation_angle(self, give_way_node_id, way_id):
         way = self.find_way_by_id(way_id)
@@ -96,7 +161,7 @@ class OSMDataHandler:
         return way.get("tags", {})
 
     def getNumberOfWaysNodeIsPartOf(self, node_id):
-        return len([way for way in self.get_ways() if node_id in way["nodes"]])
+        return self.node_way_counts.get(node_id, 0)
 
     def discardWayForTags(self, tags):
         # Determines if a way should be discarded based on its tags
