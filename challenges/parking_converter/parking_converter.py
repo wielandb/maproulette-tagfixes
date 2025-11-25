@@ -4,6 +4,16 @@ import challenge_builder as mrcb
 from tqdm import tqdm
 import random
 import copy
+try:
+    import free_tokens
+except ImportError:
+    free_tokens = None
+try:
+    import aihelper
+except ImportError:
+    # Set a flag to indicate that AIHelper is not available
+    aihelper = None
+
 
 MSG_COMPLETE = """
 The street parking tags for this side could all successfully be converted to the new format. There are no tags left that contain "parking" in any way.
@@ -25,7 +35,18 @@ Please convert this street parking side to the new format manually, giving speci
 (It could very well be that the tags that were not converted automatically are a mixture of new and old tags, so the right solution might be to just convert the base tags as normal)
 """
 
+
+class PrebuiltCooperativeWork:
+    """Wrapper so we can hand prebuilt cooperative work dicts to the challenge builder."""
+
+    def __init__(self, payload):
+        self.payload = payload
+
+    def to_dict(self):
+        return self.payload
+
 def convert_base_parking_tags(tags):
+    print(f"[convert_base_parking_tags] Received tags: {tags}")
     tagChanges = {} # to set a new tag: "newTag": "newValue", to unset a tag: "oldTag": None
     # Go thhrough all tags; if a tag contains parking and the value is "lay_by", change the value of this tag to street_side
     for key in tags:
@@ -519,6 +540,17 @@ def convert_base_parking_tags(tags):
         tagChanges["parking:both:capacity"] = tagChanges["parking:right:capacity"]
         tagChanges["parking:right:capacity"] = None
         tagChanges["parking:left:capacity"] = None
+
+    # Remove side-specific tags when they duplicate a parking:both value
+    for key, value in list(tagChanges.items()):
+        if not key.startswith("parking:both") or value is None:
+            continue
+        suffix = key[len("parking:both"):]  # includes the leading colon or is empty for the base tag
+        for side in ["left", "right"]:
+            side_key = f"parking:{side}{suffix}"
+            if side_key in tagChanges and tagChanges[side_key] == value:
+                tagChanges[side_key] = None
+    print(f"[convert_base_parking_tags] Calculated tag changes: {tagChanges}")
     return tagChanges
 
 
@@ -554,37 +586,71 @@ out geom;
 
 
 
+print(f"[main] Retrieved {len(elements)} elements from Overpass")
+
 challenge = mrcb.Challenge()
 
 random.shuffle(elements)
 
 for element in tqdm(elements):
+    print(f"[main] Processing element {element['type']} {element['id']}")
     # Convert the geometry into a LineString
     # In the element, element["geometry"] is a dict of {"lat": float, "lon": float} for each node in the way
     # Convert this into a list of [lon, lat] pairs
     geom = [[node["lon"], node["lat"]] for node in element["geometry"]]
     # geom = mrcb.getElementCenterPoint(element)
-    dd = convert_base_parking_tags(element["tags"])   
+    dd = convert_base_parking_tags(element["tags"])
+    print(f"[main] Conversion result for {element['id']}: {dd}")
 
     # Only provide cooperative work if there are no old parking tags left
     offendingTags = are_all_old_parking_tags_gone(element["tags"], dd)
+    print(f"[main] Offending tags for element {element['id']}: {offendingTags}")
+    cooperativeWork = None
     if offendingTags == {}:
         cooperativeWork = mrcb.TagFix(
-                element["type"],
-                element["id"],
-                dd
-            )
+            element["type"],
+            element["id"],
+            dd
+        )
         instruction = MSG_COMPLETE
+        print(f"[main] Element {element['id']} fully converted without AI")
     else:
-        cooperativeWork = mrcb.TagFix(
-                element["type"],
-                element["id"],
-                {"thistagwillneverbepresentandwillnotchangetags":None}
-            )
         instruction = MSG_INCOMPLETE_1
         # Use dict comprehension to print "- ❌ KEY: VALUE" for all keys in offendingTags
         instruction += "\n".join([f"- ❌ {key}={offendingTags[key]}" for key in offendingTags])
         instruction += MSG_INCOMPLETE_2
+
+        ai_used = False
+        if aihelper is not None and free_tokens is not None:
+            available_model = free_tokens.get_model_with_kontingent_from_list(
+                getattr(aihelper, "DEFAULT_MODEL_ORDER", [])
+            )
+            if available_model:
+                print(f"[main] Trying AI conversion for element {element['id']} with model {available_model}")
+                try:
+                    mr_ops, _ = aihelper.request_ai_parking_conversion(
+                        element, model_order=[available_model]
+                    )
+                    if mr_ops:
+                        cooperativeWork = PrebuiltCooperativeWork(mr_ops)
+                        instruction += "\nThis answer was AI-generated, please check all the tags carefully!"
+                        ai_used = True
+                        print(f"[main] AI provided cooperative work for element {element['id']}")
+                except Exception:
+                    ai_used = False
+                    print(f"[main] AI conversion failed for element {element['id']}")
+            else:
+                print(f"[main] No AI model available for element {element['id']}")
+        else:
+            print("[main] AI helper or free_tokens not available, skipping AI conversion")
+
+        if not ai_used or cooperativeWork is None:
+            cooperativeWork = mrcb.TagFix(
+                    element["type"],
+                    element["id"],
+                    {"thistagwillneverbepresentandwillnotchangetags":None}
+                )
+            print(f"[main] Fallback cooperative work used for element {element['id']}")
     mainFeature = mrcb.GeoFeature.withId(
         element["type"],
         element["id"],
@@ -599,7 +665,10 @@ for element in tqdm(elements):
 
 
     challenge.addTask(t)
+    print(f"[main] Task added for element {element['id']}")
 
 challenge.cap()
+print("[main] Challenge capped")
 
 challenge.saveToFile("parking_converter.json")
+print("[main] Challenge saved to parking_converter.json")

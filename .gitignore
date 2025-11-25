@@ -12,3 +12,5 @@ challenges/imgur404/latest_created_ids.json.old
 challenges/imgur404/latest_created_ids.json
 challenges/imgur404/matches.json
 challenges/imgur404/processed_urls.json
+challenges/parking_converter/free_tokens.py
+challenges/parking_converter/synchronous_batch.py
