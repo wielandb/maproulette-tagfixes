@@ -15,6 +15,10 @@ except ImportError:
     aihelper = None
 
 
+# Set to an integer to stop after that many elements; keep as None to process everything.
+PROCESS_LIMIT = 100
+
+
 MSG_COMPLETE = """
 The street parking tags for this side could all successfully be converted to the new format. There are no tags left that contain "parking" in any way.
 - ✔️ For every tag from the old scheme, an equivalent tag from the new scheme was found and added
@@ -592,7 +596,11 @@ challenge = mrcb.Challenge()
 
 random.shuffle(elements)
 
+processed_count = 0
 for element in tqdm(elements):
+    if PROCESS_LIMIT is not None and processed_count >= PROCESS_LIMIT:
+        print(f"[main] Process limit {PROCESS_LIMIT} reached, stopping early")
+        break
     print(f"[main] Processing element {element['type']} {element['id']}")
     # Convert the geometry into a LineString
     # In the element, element["geometry"] is a dict of {"lat": float, "lon": float} for each node in the way
@@ -665,6 +673,7 @@ for element in tqdm(elements):
 
 
     challenge.addTask(t)
+    processed_count += 1
     print(f"[main] Task added for element {element['id']}")
 
 challenge.cap()
