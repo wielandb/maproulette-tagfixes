@@ -1,5 +1,6 @@
 import json
 import html
+from pathlib import Path
 from typing import Any, Dict, Iterable, List, Optional, Tuple, Union
 
 try:
@@ -9,9 +10,38 @@ except ImportError:  # pragma: no cover - optional dependency
 
 import free_tokens
 
+def _load_creds(path: Optional[Path] = None) -> Dict[str, str]:
+    """
+    Load the prompt and API credentials from creds.json.
+
+    The file is expected to live next to this module and contain the keys:
+    - prompt_id
+    - prompt_version
+    - openai_key
+    """
+    creds_path = path or Path(__file__).with_name("creds.json")
+    with creds_path.open(encoding="utf-8") as f:
+        creds = json.load(f)
+
+    required_keys = ["prompt_id", "prompt_version", "openai_key"]
+    missing = [key for key in required_keys if key not in creds]
+    if missing:
+        raise KeyError(
+            f"Missing keys in credentials file {creds_path}: {', '.join(missing)}"
+        )
+
+    return {
+        "prompt_id": str(creds["prompt_id"]),
+        "prompt_version": str(creds["prompt_version"]),
+        "openai_key": str(creds["openai_key"]),
+    }
+
+
+CREDS = _load_creds()
+
 # Stored prompt that contains the full conversion instructions.
-PROMPT_ID = "pmpt_6925be968e748195babcc1d805bee80f09ae5139be5c5a16"
-PROMPT_VERSION = "2"
+PROMPT_ID = CREDS["prompt_id"]
+PROMPT_VERSION = CREDS["prompt_version"]
 
 # Prefer small (free) models first, then fall back to larger ones if tokens remain.
 DEFAULT_MODEL_ORDER = [
@@ -296,7 +326,7 @@ def request_ai_parking_conversion(
     if not model:
         return None, None
 
-    client = OpenAI()
+    client = OpenAI(api_key=CREDS["openai_key"])  # type: ignore[arg-type]
     input_text = _element_to_input_text(element)
 
     try:
