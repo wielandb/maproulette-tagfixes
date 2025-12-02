@@ -1,6 +1,7 @@
-import os, sys, json
+import os, sys, json, base64
 from dataclasses import dataclass, field
-from typing import List, Dict
+from typing import List, Dict, Optional
+import xml.etree.ElementTree as ET
 import requests
 
 def TagsAsMdTable(tags):
@@ -88,6 +89,205 @@ class TagFix():
                         }
                     ]
                 }}]}
+
+@dataclass
+class OscChange():
+    def __init__(self, osc_content):
+        if not isinstance(osc_content, str):
+            raise ValueError("osc_content must be a string containing the XML-based .osc change file")
+        # Pre-encode once so repeated calls to to_dict() are stable
+        self.encoded_content = base64.b64encode(osc_content.encode("utf-8")).decode("ascii")
+
+    def to_dict(self):
+        return {
+            "meta": {"version": 2, "type": 2},
+            "file": {
+                "type": "xml",
+                "format": "osc",
+                "encoding": "base64",
+                "content": self.encoded_content
+            }
+        }
+
+
+class OscBuilder:
+    """
+    Helper to build .osc change files with convenience helpers for common operations.
+    """
+
+    def __init__(self, generator: str = "maproulette-tagfixes"):
+        self.generator = generator
+        self.create_elems: List[ET.Element] = []
+        self.modify_elems: List[ET.Element] = []
+        self.delete_elems: List[ET.Element] = []
+        self._next_temp_id = -1
+
+    def _new_temp_id(self) -> int:
+        temp_id = self._next_temp_id
+        self._next_temp_id -= 1
+        return temp_id
+
+    def _fetch_current_element(self, osm_type: str, osm_id: int) -> Dict:
+        url = f"https://api.openstreetmap.org/api/0.6/{osm_type}/{osm_id}.json"
+        response = requests.get(url)
+        if response.status_code != 200:
+            raise ValueError(f"Could not fetch {osm_type} {osm_id}: HTTP {response.status_code}")
+        data = response.json()
+        elements = data.get("elements", [])
+        if not elements:
+            raise ValueError(f"No data returned for {osm_type} {osm_id}")
+        return elements[0]
+
+    def _element_to_xml(self, element: Dict) -> ET.Element:
+        el_type = element.get("type")
+        if el_type not in ("node", "way", "relation"):
+            raise ValueError(f"Unsupported element type: {el_type}")
+        attrs = {"id": str(element["id"]), "version": str(element["version"])}
+        if el_type == "node":
+            attrs["lat"] = str(element["lat"])
+            attrs["lon"] = str(element["lon"])
+        xml_elem = ET.Element(el_type, attrs)
+        if el_type == "way":
+            for nd_ref in element.get("nodes", []):
+                xml_elem.append(ET.Element("nd", {"ref": str(nd_ref)}))
+        elif el_type == "relation":
+            for member in element.get("members", []):
+                member_attrs = {
+                    "type": member["type"],
+                    "ref": str(member["ref"]),
+                    "role": member.get("role", "")
+                }
+                xml_elem.append(ET.Element("member", member_attrs))
+        for k, v in element.get("tags", {}).items():
+            xml_elem.append(ET.Element("tag", {"k": k, "v": v}))
+        return xml_elem
+
+    def createNode(self, lat: float, lon: float, tags: Optional[Dict[str, str]] = None) -> int:
+        """
+        Create a new node with a temporary negative ID. Returns the new node ID.
+        """
+        tags = tags or {}
+        node_id = self._new_temp_id()
+        node_elem = ET.Element("node", {"id": str(node_id), "lat": str(lat), "lon": str(lon), "version": "1"})
+        for k, v in tags.items():
+            node_elem.append(ET.Element("tag", {"k": k, "v": v}))
+        self.create_elems.append(node_elem)
+        return node_id
+
+    def createWayFromNodeIds(self, node_ids: List[int], tags: Optional[Dict[str, str]] = None) -> int:
+        """
+        Create a new way using the provided node IDs. Returns the new way ID.
+        """
+        if not node_ids:
+            raise ValueError("node_ids must contain at least one node")
+        tags = tags or {}
+        way_id = self._new_temp_id()
+        way_elem = ET.Element("way", {"id": str(way_id), "version": "1"})
+        for nid in node_ids:
+            way_elem.append(ET.Element("nd", {"ref": str(nid)}))
+        for k, v in tags.items():
+            way_elem.append(ET.Element("tag", {"k": k, "v": v}))
+        self.create_elems.append(way_elem)
+        return way_id
+
+    def createWay(self, coordinates: List[List[float]], tags: Optional[Dict[str, str]] = None):
+        """
+        Create a new way from a list of coordinates [[lon, lat], ...].
+        Nodes are created automatically and linked in the new way.
+        Returns (way_id, node_ids).
+        """
+        if not coordinates:
+            raise ValueError("coordinates must contain at least one coordinate pair")
+        node_ids = [self.createNode(lat=coord[1], lon=coord[0]) for coord in coordinates]
+        way_id = self.createWayFromNodeIds(node_ids, tags)
+        return way_id, node_ids
+
+    def removeObject(self, osm_type: str, osm_id: int):
+        """
+        Delete an existing element (node/way/relation).
+        """
+        current = self._fetch_current_element(osm_type, osm_id)
+        self.delete_elems.append(self._element_to_xml(current))
+        return self
+
+    def removeNodeFromWay(self, way_id: int, node_id: int):
+        """
+        Remove a node from a way by rewriting the way member list.
+        """
+        way = self._fetch_current_element("way", way_id)
+        nodes = way.get("nodes", [])
+        if node_id not in nodes:
+            raise ValueError(f"Node {node_id} not found in way {way_id}")
+        way["nodes"] = [n for n in nodes if n != node_id]
+        self.modify_elems.append(self._element_to_xml(way))
+        return self
+
+    def addObjectToRelation(self, relation_id: int, object_type: str, object_id: int, position: Optional[int] = None, role: str = ""):
+        """
+        Insert a member into a relation at the given position (defaults to append).
+        Supports negative positions to count from the end (-1 = after last, -2 = before last, etc.).
+        """
+        relation = self._fetch_current_element("relation", relation_id)
+        members = list(relation.get("members", []))
+        insertion = {"type": object_type, "ref": object_id, "role": role}
+        if position is None:
+            insert_index = len(members)
+        elif position < 0:
+            insert_index = len(members) + position + 1
+            insert_index = max(0, insert_index)
+        elif position >= len(members):
+            insert_index = len(members)
+        else:
+            insert_index = position
+        members.insert(insert_index, insertion)
+        relation["members"] = members
+        self.modify_elems.append(self._element_to_xml(relation))
+        return self
+
+    def removeObjectFromRelation(self, relation_id: int, object_type: str, object_id: int, role: Optional[str] = None):
+        """
+        Remove an existing member from a relation.
+        """
+        relation = self._fetch_current_element("relation", relation_id)
+        members = relation.get("members", [])
+        new_members = []
+        removed = False
+        for m in members:
+            if m.get("type") == object_type and m.get("ref") == object_id and (role is None or m.get("role", "") == role):
+                if removed:
+                    new_members.append(m)
+                else:
+                    removed = True
+            else:
+                new_members.append(m)
+        if not removed:
+            raise ValueError(f"Member {object_type}/{object_id} not found in relation {relation_id}")
+        relation["members"] = new_members
+        self.modify_elems.append(self._element_to_xml(relation))
+        return self
+
+    def to_xml_element(self) -> ET.Element:
+        osc = ET.Element("osmChange", {"version": "0.6", "generator": self.generator})
+        if self.create_elems:
+            create = ET.SubElement(osc, "create")
+            for el in self.create_elems:
+                create.append(el)
+        if self.modify_elems:
+            modify = ET.SubElement(osc, "modify")
+            for el in self.modify_elems:
+                modify.append(el)
+        if self.delete_elems:
+            delete = ET.SubElement(osc, "delete")
+            for el in self.delete_elems:
+                delete.append(el)
+        return osc
+
+    def to_string(self) -> str:
+        osc = self.to_xml_element()
+        return ET.tostring(osc, encoding="unicode")
+
+    def to_osc_change(self) -> OscChange:
+        return OscChange(self.to_string())
 
 @dataclass
 class Task:
