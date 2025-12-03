@@ -677,7 +677,10 @@ for element in tqdm(elements):
         element["type"],
         element["id"],
         geom,
-        properties={"task_instruction":instruction}
+        properties={
+            "task_instruction": instruction,
+            "oneway": "yes",
+        },
     )
     t = mrcb.Task(
         mainFeature,
