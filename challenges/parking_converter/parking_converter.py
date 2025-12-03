@@ -566,6 +566,70 @@ def convert_base_parking_tags(tags):
     return tagChanges
 
 
+def apply_tag_changes_to_tags(tags, tag_changes):
+    updated = copy.deepcopy(tags)
+    for key, value in tag_changes.items():
+        if value is None:
+            updated.pop(key, None)
+        else:
+            updated[key] = value
+    return updated
+
+
+def _get_parking_side_from_key(key):
+    for side in ["right", "left", "both"]:
+        if f":{side}" in key:
+            return side
+    return None
+
+
+def build_conversion_breakdown(original_tags, tag_changes):
+    if not tag_changes:
+        return []
+
+    updated_tags = apply_tag_changes_to_tags(original_tags, tag_changes)
+    added_or_changed = {
+        key: value
+        for key, value in updated_tags.items()
+        if original_tags.get(key) != value
+    }
+    removed_tags = {
+        key: original_tags[key]
+        for key, value in tag_changes.items()
+        if value is None and key in original_tags
+    }
+
+    breakdown_lines = []
+    used_new_keys = set()
+
+    for key in sorted(removed_tags.keys()):
+        side = _get_parking_side_from_key(key)
+        replacements = [
+            new_key
+            for new_key in sorted(added_or_changed.keys())
+            if side is None or _get_parking_side_from_key(new_key) in (side, "both")
+        ]
+        if replacements:
+            breakdown_lines.append(
+                f"{key}={removed_tags[key]} => "
+                + " + ".join([f"{r}={added_or_changed[r]}" for r in replacements])
+            )
+            used_new_keys.update(replacements)
+        else:
+            breakdown_lines.append(f"{key}={removed_tags[key]} => entfernt")
+
+    for key in sorted(added_or_changed.keys()):
+        if key in original_tags and original_tags[key] != added_or_changed[key] and key not in used_new_keys:
+            breakdown_lines.append(f"{key}={original_tags[key]} => {key}={added_or_changed[key]}")
+            used_new_keys.add(key)
+
+    for key in sorted(added_or_changed.keys()):
+        if key not in original_tags and key not in used_new_keys:
+            breakdown_lines.append(f"neu: {key}={added_or_changed[key]}")
+
+    return breakdown_lines
+
+
 def are_all_old_parking_tags_gone(tags, tagChanges):
     # go through the tags. If a key in the tags dictionary has a value of None in the tagChanges dictionary, remove the key from the tags dictionary
     poppableDict = copy.deepcopy(tags)
@@ -616,11 +680,18 @@ for element in tqdm(elements):
     # Convert this into a list of [lon, lat] pairs
     geom = [[node["lon"], node["lat"]] for node in element["geometry"]]
     # geom = mrcb.getElementCenterPoint(element)
-    dd = convert_base_parking_tags(element["tags"])
+    original_tags = copy.deepcopy(element["tags"])
+    tags_for_conversion = copy.deepcopy(element["tags"])
+    dd = convert_base_parking_tags(tags_for_conversion)
     print(f"[main] Conversion result for {element['id']}: {dd}")
+    conversion_breakdown = build_conversion_breakdown(original_tags, dd)
+    print(f"[main] Conversion breakdown for {element['id']}: {conversion_breakdown}")
+    breakdown_text = ""
+    if conversion_breakdown:
+        breakdown_text = "\n\nAutomatische Umwandlung (alt => neu):\n" + "\n".join([f"- {line}" for line in conversion_breakdown])
 
     # Only provide cooperative work if there are no old parking tags left
-    offendingTags = are_all_old_parking_tags_gone(element["tags"], dd)
+    offendingTags = are_all_old_parking_tags_gone(tags_for_conversion, dd)
     print(f"[main] Offending tags for element {element['id']}: {offendingTags}")
     cooperativeWork = None
     if offendingTags == {}:
@@ -630,13 +701,14 @@ for element in tqdm(elements):
             dd
         )
         instruction = MSG_COMPLETE
+        if breakdown_text:
+            instruction += breakdown_text
         print(f"[main] Element {element['id']} fully converted without AI")
     else:
         base_instruction = MSG_INCOMPLETE_1
         # Use dict comprehension to print "- ❌ KEY: VALUE" for all keys in offendingTags
         base_instruction += "\n".join([f"- ❌ {key}={offendingTags[key]}" for key in offendingTags])
         base_instruction += MSG_INCOMPLETE_2
-        instruction = base_instruction
 
         ai_used = False
         if aihelper is not None and free_tokens is not None:
@@ -673,6 +745,10 @@ for element in tqdm(elements):
                 print(f"[main] Skipping element {element['id']} because ONLY_AUTO_TASKS is enabled and no AI result was available")
                 continue
             instruction = base_instruction
+            if breakdown_text:
+                instruction += breakdown_text
+        else:
+            instruction = MSG_COMPLETE_AI
     mainFeature = mrcb.GeoFeature.withId(
         element["type"],
         element["id"],

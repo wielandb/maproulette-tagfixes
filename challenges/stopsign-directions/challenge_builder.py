@@ -152,11 +152,23 @@ class Overpass:
     def __init__(self, overpass_url="https://overpass-api.de/api/interpreter"):
         self.overpass_url = overpass_url
 
+    def _response_excerpt(self, response, max_chars=500):
+        text = response.text or ""
+        text = text.replace("\n", "\\n")
+        if len(text) > max_chars:
+            return text[:max_chars] + "...[truncated]"
+        return text
+
     def queryElementsRaw(self, overpass_query):
         response = requests.get(self.overpass_url, params={'data': overpass_query})
         if response.status_code != 200:
-            raise ValueError("Invalid return data")
-        return response.json()["elements"]
+            snippet = self._response_excerpt(response)
+            raise ValueError(f"Invalid return data (HTTP {response.status_code}): {snippet}")
+        try:
+            return response.json()["elements"]
+        except (ValueError, KeyError, TypeError):
+            snippet = self._response_excerpt(response)
+            raise ValueError(f"Invalid return data (HTTP {response.status_code}): {snippet}")
 
     def queryElementsAsGeoJSON(self, overpass_query, forceGeomType=None):
         rawElements = self.queryElementsRaw(overpass_query)

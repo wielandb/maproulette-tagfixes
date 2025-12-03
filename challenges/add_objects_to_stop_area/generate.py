@@ -2,7 +2,7 @@ import sys
 import math
 import random
 import copy
-from typing import Dict, List
+from typing import Any, Dict, List
 
 from tqdm import tqdm
 
@@ -29,6 +29,12 @@ OUTPUT_FILE = "add_objects_to_stop_area.json"
 # Simple styling so objects-to-add and the relation are visually distinct
 OBJECT_STYLE = {"marker-color": "#d14334", "marker-size": "medium", "marker-symbol": "star"}
 STOP_AREA_STYLE = {"stroke": "#2563eb", "stroke-width": 3, "stroke-opacity": 0.85, "fill": "#93c5fd", "fill-opacity": 0.2}
+
+
+def apply_style(properties: Dict[str, Any], style: Dict[str, str]) -> Dict[str, Any]:
+    styled = dict(properties)
+    styled.update(style)
+    return styled
 
 
 def haversine_distance(lat1, lon1, lat2, lon2):
@@ -218,11 +224,14 @@ def build_relation_member_features(overpass_client, relation_id: int) -> List[mr
                     mtype,
                     ref,
                     geom,
-                    properties={
-                        "role": role,
-                        "style": STOP_AREA_STYLE,
-                        "public_transport": "stop_area_member",
-                    },
+                    properties=apply_style(
+                        {
+                            "role": role,
+                            "public_transport": "stop_area_member",
+                            "tags": source_el.get("tags", {}),
+                        },
+                        STOP_AREA_STYLE,
+                    ),
                 )
             )
         except Exception as exc:
@@ -261,7 +270,7 @@ def main():
         grouped.setdefault(nearest_sa["id"], {"stop_area": nearest_sa, "objects": []})
         grouped[nearest_sa["id"]]["objects"].append({"element": obj, "distance": distance})
 
-    for sa_id, info in grouped.items():
+    for sa_id, info in tqdm(grouped.items(), total=len(grouped)):
         stop_area = info["stop_area"]
         objects = info["objects"]
         try:
@@ -294,14 +303,17 @@ def main():
             "relation",
             sa_id,
             relation_display_geom,
-            properties={
-                "public_transport": "stop_area",
-                "name": stop_area.get("tags", {}).get("name", ""),
-                "task_instruction": task_instruction,
-                "objects_count": len(objects),
-                "target_stop_area": str(sa_id),
-                "style": STOP_AREA_STYLE,
-            },
+            properties=apply_style(
+                {
+                    "public_transport": "stop_area",
+                    "name": stop_area.get("tags", {}).get("name", ""),
+                    "task_instruction": task_instruction,
+                    "objects_count": len(objects),
+                    "target_stop_area": str(sa_id),
+                    "tags": stop_area.get("tags", {}),
+                },
+                STOP_AREA_STYLE,
+            ),
         )
 
         additional_features = list(member_features)
@@ -318,11 +330,15 @@ def main():
                     obj["type"],
                     obj["id"],
                     obj_geom,
-                    properties={
-                        "distance_to_stop_area_m": round(distance) if distance is not None else None,
-                        "style": OBJECT_STYLE,
-                        "matching_tags": describe_object(obj),
-                    },
+                    properties=apply_style(
+                        {
+                            "distance_to_stop_area_m": round(distance) if distance is not None else None,
+                            "matching_tags": describe_object(obj),
+                            "tags": obj.get("tags", {}),
+                            "object_type": obj.get("type"),
+                        },
+                        OBJECT_STYLE,
+                    ),
                 )
             )
 
@@ -344,4 +360,3 @@ def main():
 
 if __name__ == "__main__":
     main()
-
