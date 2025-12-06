@@ -688,7 +688,7 @@ for element in tqdm(elements):
     print(f"[main] Conversion breakdown for {element['id']}: {conversion_breakdown}")
     breakdown_text = ""
     if conversion_breakdown:
-        breakdown_text = "\n\nAutomatische Umwandlung (alt => neu):\n" + "\n".join([f"- {line}" for line in conversion_breakdown])
+        breakdown_text = "\n\nAutomatic Conversion (old => new):\n" + "\n".join([f"- {line}" for line in conversion_breakdown])
 
     # Only provide cooperative work if there are no old parking tags left
     offendingTags = are_all_old_parking_tags_gone(tags_for_conversion, dd)
