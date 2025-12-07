@@ -227,11 +227,11 @@ def should_show_deletion_hint(last_timestamp: Optional[datetime]) -> bool:
     return (now - last_timestamp) > FIVE_YEARS
 
 
-def build_instruction_text(history_info: HistoryInfo, date_candidate: Optional[DateCandidate], show_deletion_hint: bool) -> str:
+def build_instruction_text(history_info: HistoryInfo, date_candidate: Optional[DateCandidate], show_deletion_hint: bool, tagfix_available: bool) -> str:
     tag_key = history_info.tag_key
     tag_value = history_info.tag_value
-    if not tag_value:
-        text = [FALLBACK_INTRO, "", NO_TAGFIX_MESSAGE, "", FALLBACK_PART1]
+    if not tagfix_available or not tag_value:
+        text = [FALLBACK_INTRO, "", FALLBACK_PART1]
         if show_deletion_hint:
             text.append("")
             text.append(FALLBACK_PART2)
@@ -278,7 +278,7 @@ def build_tagfix(osm_type: str, osm_id: int, history_info: HistoryInfo, date_can
 
 
 def build_main_feature(element: dict, instruction_text: str) -> mrcb.GeoFeature:
-    geometry = mrcb.getElementCenterPoint(element)
+    geometry = mrcb.getElementGeometry(element)
     properties = {
         "task_instruction": instruction_text,
     }
@@ -293,7 +293,7 @@ def main():
 [out:json][timeout:250];
 area(id:3600051477)->.searchArea;
 nwr["note"~"bgerissen"](if:count_tags()==1)(area.searchArea);
-out tags center;
+out tags geom;
         """
     )
 
@@ -305,15 +305,16 @@ out tags center;
 
         date_candidate = find_best_date_from_tags(element.get("tags", {}))
         history_info = fetch_history_info(element["type"], element["id"])
+        cooperative = build_tagfix(element["type"], element["id"], history_info, date_candidate)
 
         instruction_text = build_instruction_text(
             history_info,
             date_candidate,
-            should_show_deletion_hint(history_info.last_timestamp)
+            should_show_deletion_hint(history_info.last_timestamp),
+            cooperative is not None
         )
 
         feature = build_main_feature(element, instruction_text)
-        cooperative = build_tagfix(element["type"], element["id"], history_info, date_candidate)
         if cooperative:
             task = mrcb.Task(feature, cooperativeWork=cooperative)
         else:
