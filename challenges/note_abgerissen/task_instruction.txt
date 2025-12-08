@@ -11,3 +11,20 @@ Löse das Problem auf eine der folgenden Weisen:
 
 2. Wenn auf KEINEM der verfügbaren Luftbilder das Objekt zu sehen ist:
    - Lösche das Objekt
+
+
+
+
+Hier die manuelle Anweisung, falls es keine TagFix-Daten gibt
+
+Ein Objekt sollte nicht nur einen einzelnen `note`-Tag haben, sondern Tags, die das Objekt beschreiben.
+
+Löse das Problem auf eine der folgenden Weisen:
+
+1. Wenn auf einem der verfügbaren Luftbilder das abgerissene Objekt noch zu sehen ist:
+   - Wenn es ein Gebäude ist, dann füge `razed:building=yes` hinzu
+   - Du kannst natürlich auch gerne eine genauere Beschreibung hinzufügen, wenn ersichtlich ist, was es früher war. Z.B. `razed:building=garages` oder `razed:building=apartments`
+   - Wenn die Note einen Hinweis darauf enthält, wann das Gebäude abgerissen wurde, kannst du es mittels `end_date=*` angeben, z.B. `end_date=2024-05`
+
+2. Wenn auf KEINEM der verfügbaren Luftbilder das Objekt zu sehen ist:
+   - Lösche das Objekt

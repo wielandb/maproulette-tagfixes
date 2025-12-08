@@ -248,11 +248,11 @@ def build_instruction_text(history_info: HistoryInfo, date_candidate: Optional[D
     if tag_key == "highway":
         razed_tag = "razed:highway"
     if tag_key:
-        lines.append(f"🏗️ Die Historie nennt zuletzt `{tag_key}={tag_value}`\n    Der vorgeschlagene Wert ist deshalb `{razed_tag}={tag_value}`.")
+        lines.append(f"🏗️ Die Historie nennt zuletzt `{tag_key}={tag_value}`\n    Der vorgeschlagene Wert ist deshalb `{razed_tag}={tag_value}`.\n")
     if history_info.name_value:
-        lines.append(f"🧾 Die früheren Namen des Objekts waren `{history_info.name_value}`\n    Der vorgeschragene Wert ist deshalb `old_name={history_info.name_value}`.")
+        lines.append(f"🧾 Die früheren Namen des Objekts waren `{history_info.name_value}`\n    Der vorgeschlagene Wert ist deshalb `old_name={history_info.name_value}`.\n")
     if date_candidate:
-        lines.append(f"📅 In den Tags wurde der Zeitpunkt `{date_candidate.normalized}` erkannt\n deswegen wird vorgeschlagen `end_date={date_candidate.normalized}` zu setzen.")
+        lines.append(f"📅 In den Tags wurde der Zeitpunkt `{date_candidate.normalized}` erkannt\n deswegen wird vorgeschlagen `end_date={date_candidate.normalized}` zu setzen.\n")
 
     if show_deletion_hint:
         lines.append("")
