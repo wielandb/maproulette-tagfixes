@@ -230,7 +230,7 @@ def should_show_deletion_hint(last_timestamp: Optional[datetime]) -> bool:
 def build_instruction_text(history_info: HistoryInfo, date_candidate: Optional[DateCandidate], show_deletion_hint: bool, tagfix_available: bool) -> str:
     tag_key = history_info.tag_key
     tag_value = history_info.tag_value
-    if not tagfix_available or not tag_value:
+    if not tagfix_available:
         text = [FALLBACK_INTRO, "", FALLBACK_PART1]
         if show_deletion_hint:
             text.append("")
@@ -248,15 +248,16 @@ def build_instruction_text(history_info: HistoryInfo, date_candidate: Optional[D
     if tag_key == "highway":
         razed_tag = "razed:highway"
     if tag_key:
-        lines.append(f"🏗️ Die Historie nennt zuletzt `{tag_key}={tag_value}`; bestätige oder verbessere `{razed_tag}={tag_value}`.")
+        lines.append(f"🏗️ Die Historie nennt zuletzt `{tag_key}={tag_value}`\n    Der vorgeschlagene Wert ist deshalb `{razed_tag}={tag_value}`.")
     if history_info.name_value:
-        lines.append(f"🧾 Die früheren Namen des Objekts waren `{history_info.name_value}`; bestätige oder verbessere `old_name={history_info.name_value}`.")
+        lines.append(f"🧾 Die früheren Namen des Objekts waren `{history_info.name_value}`\n    Der vorgeschragene Wert ist deshalb `old_name={history_info.name_value}`.")
     if date_candidate:
-        lines.append(f"📅 In den Tags wurde der Zeitpunkt `{date_candidate.normalized}` erkannt; bestätige oder korrigiere `end_date={date_candidate.normalized}`.")
+        lines.append(f"📅 In den Tags wurde der Zeitpunkt `{date_candidate.normalized}` erkannt\n deswegen wird vorgeschlagen `end_date={date_candidate.normalized}` zu setzen.")
 
     if show_deletion_hint:
         lines.append("")
         lines.append("🗑️ Wenn auf KEINEM der verfügbaren Luftbilder das Objekt noch zu erkennen ist (und die letzte Bearbeitung länger als fünf Jahre zurückliegt), entferne das Element.")
+        lines.append("Diese Nachricht wird angezeigt, weil die letzte Änderung des Objekts länger als fünf Jahre zurückliegt. Du kannst das Objekt also löschen, nachdem du die Luftbilder geprüft hast.")
 
     return "\n".join(lines)
 
