@@ -10,6 +10,8 @@ except ImportError:  # pragma: no cover - optional dependency
 
 import free_tokens
 
+PROJECT_NAME = "parking-converter"
+
 def _load_creds(path: Optional[Path] = None) -> Dict[str, str]:
     """
     Load the prompt and API credentials from creds.json.
@@ -293,7 +295,7 @@ def _record_token_usage(response: Any, model: str) -> None:
     if total_tokens is None and isinstance(usage, dict):
         total_tokens = usage.get("total_tokens")
     if total_tokens:
-        free_tokens.add_to_today_tokens(int(total_tokens), model)
+        free_tokens.add_to_today_tokens(int(total_tokens), model, project=PROJECT_NAME)
 
 
 def request_ai_parking_conversion(
