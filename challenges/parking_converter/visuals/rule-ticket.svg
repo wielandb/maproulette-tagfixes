@@ -1,0 +1,9 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 40 40" role="img" aria-labelledby="title desc">
+  <title id="title">Parking ticket required</title>
+  <desc id="desc">Parking ticket required. A badge summarizes the rule; accompanying text contains conditions and details.</desc>
+  <style>text{font-family:Arial,Helvetica,sans-serif}</style>
+  <rect x="0.5" y="0.5" width="39" height="39" rx="7" fill="#fffdf8" stroke="#b5bec5"/>
+  <path d="M10 7H30V15Q25 15 25 20T30 25V33H10V25Q15 25 15 20T10 15Z" fill="#f2ce70" stroke="#85651e" stroke-width="1.5"/>
+  <text x="20" y="24" text-anchor="middle" font-size="15" font-weight="700" fill="#6f5215">P</text>
+</svg>

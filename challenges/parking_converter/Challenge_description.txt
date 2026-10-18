@@ -1,4 +1,6 @@
 In this challenge, you convert the old street parking schema `parking:lane:<side>=*` to the new schema `parking:<side>=*`.
 Sometimes you'll have to convert tags that could not be automatically converted by hand, so be sure to [read the documentation about the new street parking schema on the wiki](https://wiki.openstreetmap.org/wiki/Street_parking)!
 
+Each generated task includes a visual comparison of the old and proposed new tags for the left and right side of the road. The diagrams show parking position, orientation and explicit markings; further rows compare restrictions and other parking conditions. Left and right follow the OSM way direction (the upward arrow), not the map or driving direction. Changed rows are flagged. Missing information remains unknown, and unhandled tags are listed for manual checking. Conditional rules are shown literally, without checking the current time. Please check the raw tags as well as the schematic pictures before accepting a conversion.
+
 The code for this challenge can be found [here](https://github.com/wielandb/maproulette-tagfixes/tree/main/challenges/parking_converter). The discussion for this challenge is held [here]().

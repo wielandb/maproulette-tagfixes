@@ -5,9 +5,15 @@ SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR.parents[1] / 'shared'))
 sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 from shared import challenge_builder as mrcb
+from challenges.parking_converter.parking_comparison import (
+    apply_cooperative_work,
+    build_parking_comparison,
+)
 from tqdm import tqdm
 import random
 import copy
+import json
+import os
 try:
     import free_tokens
 except ImportError:
@@ -33,6 +39,8 @@ def ai_conversion_available():
 PROCESS_LIMIT = None
 # Stop building tasks once the challenge's maximum size has been reached.
 TASK_LIMIT = 50000
+# GitHub's single-file limit, measured as serialized UTF-8 JSON-sequence bytes.
+MAX_OUTPUT_BYTES = 100 * 1024 * 1024
 # When True, skip tasks that would require manual conversion (only keep auto/AI results).
 ONLY_AUTO_TASKS = True
 
@@ -662,6 +670,16 @@ way["parking:lane:{side}"];
 out geom;'''
 
 
+def task_output_size_bytes(task):
+    """Match Challenge.saveToFile, including record separator and text newline.
+
+    The shared writer uses ensure_ascii=False and platform-native newlines, so
+    Unicode must be measured in UTF-8 bytes and Windows needs a CRLF allowance.
+    """
+    payload = json.dumps(task.to_dict(), ensure_ascii=False).encode("utf-8")
+    return len(payload) + len(("\x1e" + os.linesep).encode("utf-8"))
+
+
 def main(output_path=None, overpass=None, use_ai=None):
     op = overpass if overpass is not None else mrcb.Overpass()
     # Each global tag lookup needs its own server time budget. A union of all
@@ -688,6 +706,7 @@ def main(output_path=None, overpass=None, use_ai=None):
     random.shuffle(elements)
 
     processed_count = 0
+    output_size_bytes = 0
     for element in tqdm(elements):
         if PROCESS_LIMIT is not None and processed_count >= PROCESS_LIMIT:
             print(f"[main] Process limit {PROCESS_LIMIT} reached, stopping early")
@@ -781,6 +800,16 @@ def main(output_path=None, overpass=None, use_ai=None):
                     instruction += breakdown_text
             else:
                 instruction = MSG_COMPLETE_AI
+        # Derive the preview from the work that MapRoulette will actually offer.
+        # This includes AI edits and the no-op fallback for manual tasks.
+        try:
+            proposed_tags = apply_cooperative_work(
+                original_tags, cooperativeWork.to_dict(),
+                f"{element['type']}/{element['id']}",
+            )
+            instruction += build_parking_comparison(original_tags, proposed_tags)
+        except (KeyError, TypeError, ValueError):
+            instruction += "\n\n⚠️ Visual comparison unavailable: the proposed edits could not be interpreted. Check the raw tag changes."
         mainFeature.properties.update({
             "task_instruction": instruction,
             "oneway": "yes",
@@ -792,10 +821,22 @@ def main(output_path=None, overpass=None, use_ai=None):
         )
 
 
+        task_size_bytes = task_output_size_bytes(t)
+        if output_size_bytes + task_size_bytes > MAX_OUTPUT_BYTES:
+            print(
+                f"[main] Output size limit {MAX_OUTPUT_BYTES} bytes would be exceeded "
+                f"({output_size_bytes} bytes + next task {task_size_bytes} bytes); "
+                "stopping before adding the next task"
+            )
+            break
         challenge.addTask(t)
+        output_size_bytes += task_size_bytes
         print(f"[main] Task added for element {element['id']}")
         if len(challenge.tasks) >= TASK_LIMIT:
             print(f"[main] Task limit {TASK_LIMIT} reached, stopping early")
+            break
+        if output_size_bytes == MAX_OUTPUT_BYTES:
+            print(f"[main] Output size limit {MAX_OUTPUT_BYTES} bytes reached, stopping early")
             break
 
     challenge.cap()
@@ -804,6 +845,7 @@ def main(output_path=None, overpass=None, use_ai=None):
     output_path = Path(output_path) if output_path is not None else SCRIPT_DIR / "parking_converter.json"
     challenge.saveToFile(output_path)
     print(f"[main] Challenge saved to {output_path}")
+    print(f"[main] Saved {len(challenge.tasks)} tasks, {output_size_bytes} bytes")
     return challenge
 
 

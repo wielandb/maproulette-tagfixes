@@ -25,12 +25,19 @@ The parking converter works without the optional AI helper. AI conversion requir
 its separate local configuration and dependencies. Each old parking-side tag is
 queried separately to stay within Overpass's global query timeout; duplicate ways
 are merged before conversion.
+The parking generator stops at 50,000 tasks or before adding a task that would
+exceed 100 MiB (104,857,600 bytes), whichever comes first. The byte limit includes
+the complete UTF-8 JSON sequence with descriptions, geometry, cooperative edits,
+record separators and platform-native line endings. The task that would exceed
+the limit is not included; the completed tasks are still saved normally.
 
 The stop-area generator also accepts `--bbox SOUTH WEST NORTH EAST`, `--output`
 and `--max-tasks` for a smaller live run. Without these options it processes all
 of Germany in batches of 100 stations, merging results and excluding existing
 members across all batches. Current relations are read from the OSM editing API
-in batches of 100 before building OSC changes. For example, after creating the
+in batches of 100 before building OSC changes. The [stop-area catalogue and
+review instructions](challenges/add_objects_to_stop_area/README.md) describe the
+equipment and access infrastructure included. For example, after creating the
 output directory:
 
 ```powershell
@@ -76,3 +83,110 @@ Run the offline regression tests with:
 ```powershell
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
+
+## Parking conversion comparison
+
+Every newly generated parking task includes a Markdown comparison table with
+four small views: old left/right and proposed new left/right. The first row
+shows position and orientation, with explicit parking-space markings in the
+diagram. Further rows compare markings, restrictions, fees, authentication,
+maximum stay, access, capacity, and any supported conditional rules that occur.
+Changed rows are flagged. Left/right are relative to the OSM way direction,
+indicated by an upward arrow, rather than the map or driving direction.
+
+The legacy and modern parsers are independent of the conversion rules. The new
+columns use the actual cooperative-work operations, including AI proposals and
+the no-op used for manual tasks; retained modern tags are included. The old
+columns interpret the legacy schema. Missing information stays unknown and
+unhandled values/tags remain visible with a warning. Conditional expressions
+are compared literally, without evaluating time or local parking law. This is
+a schematic review aid, not a guarantee that all tag meanings are equivalent.
+
+MapRoulette supports Markdown images and tables but not raw HTML, so the small
+SVGs are hosted as ordinary repository files. **Publish the `visuals/` assets
+before uploading generated tasks.** By default image links point to
+`https://raw.githubusercontent.com/wielandb/maproulette-tagfixes/main/challenges/parking_converter/visuals`.
+For a fork, another branch, or a different static host, set
+`PARKING_VISUALS_BASE_URL` to the public HTTPS directory containing those SVGs
+before running the generator. Existing challenge data is updated on regeneration.
+
+Preview representative comparisons locally, without Overpass or AI access:
+
+```powershell
+.\.venv\Scripts\python.exe challenges/parking_converter/preview_parking_comparison.py
+```
+
+Open the printed `comparison_preview.html` path in a browser. This generated,
+Git-ignored HTML embeds the repository SVGs and works offline. An optional
+`--output PATH` selects its destination. The MapRoulette instructions themselves
+use portable Markdown, not this HTML preview. Regenerate the finite icon set
+after changing its drawing code with:
+
+```powershell
+.\.venv\Scripts\python.exe challenges/parking_converter/generate_parking_icons.py
+```
+
+The interpretation follows the OSM wiki's [legacy parking tags](https://wiki.openstreetmap.org/wiki/Key:parking:lane)
+and [current street parking schema](https://wiki.openstreetmap.org/wiki/Street_parking).
+See also [MapRoulette's Markdown support](https://learn.maproulette.org/en-US/documentation/markdown/).
+
+## Optional parking AI setup
+
+Run the parking generator from the repository root with:
+
+```powershell
+.\.venv\Scripts\python.exe challenges/parking_converter/parking_converter.py
+```
+
+The normal rules work without an API key. AI is only attempted for conversions
+that the rules cannot complete and that have no conflicting modern parking tags.
+If AI dependencies, configuration, quota service, or a usable AI result are
+unavailable, rule-based conversion continues. With the current
+`ONLY_AUTO_TASKS = True`, ways that cannot be converted completely are skipped.
+
+To enable the existing AI helper locally:
+
+1. Install the optional SDK; it is not included in `requirements.txt`:
+
+   ```powershell
+   .\.venv\Scripts\python.exe -m pip install openai
+   ```
+
+2. Create `challenges/parking_converter/creds.json` with your own configuration:
+
+   ```json
+   {
+     "prompt_id": "YOUR_EXISTING_PROMPT_ID",
+     "prompt_version": "YOUR_PROMPT_VERSION",
+     "openai_key": "YOUR_OPENAI_API_KEY"
+   }
+   ```
+
+   This file is ignored by Git. The helper reads the key explicitly from this
+   file; setting `OPENAI_API_KEY` alone does not configure the current code.
+   The key needs access to the referenced prompt and a supported model.
+
+3. Supply the separate local `free_tokens.py` helper, for example at
+   `shared/free_tokens.py`. This helper is ignored by Git and is not included in
+   a fresh checkout. Its quota service must be reachable; configure
+   `FREE_TOKENS_URL` and `FREE_TOKENS_API_KEY` in the process environment for
+   your service. The current local helper otherwise defaults to
+   `http://localhost/free-tokens.php` and the placeholder `CHANGE_ME`.
+   Its quota accounting does not itself establish whether OpenAI API usage is
+   free. The configured model order is `gpt-5-mini`, then `gpt-5.1`.
+
+There is currently no parking GitHub Actions workflow. The existing workflow
+only updates the stopsign challenge and does not provision an OpenAI key.
+Repository files cannot show whether Actions secrets have already been configured
+on GitHub. For a future parking workflow, store the key as an Actions secret
+such as `OPENAI_API_KEY`, then explicitly pass it to the job. The current helper
+would also need to read that environment variable, or the job would need to
+create the ignored credentials file at runtime. Provision the prompt configuration,
+quota helper, and quota service configuration as well. Do not commit credential
+files or print secret values in workflow logs.
+
+The current integration uses a stored OpenAI prompt ID. As of October 18, 2026,
+the [official OpenAI documentation](https://developers.openai.com/api/docs/guides/prompting)
+announces retirement of prompt objects on November 30, 2026. Move the prompt
+content into versioned application code before that retirement when maintaining
+this integration.

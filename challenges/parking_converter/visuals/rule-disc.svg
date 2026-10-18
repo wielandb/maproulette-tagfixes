@@ -1,0 +1,11 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<svg xmlns="http://www.w3.org/2000/svg" width="28" height="28" viewBox="0 0 40 40" role="img" aria-labelledby="title desc">
+  <title id="title">Parking disc required</title>
+  <desc id="desc">Parking disc required. A badge summarizes the rule; accompanying text contains conditions and details.</desc>
+  <style>text{font-family:Arial,Helvetica,sans-serif}</style>
+  <rect x="0.5" y="0.5" width="39" height="39" rx="7" fill="#fffdf8" stroke="#b5bec5"/>
+  <rect x="9" y="6" width="22" height="29" rx="2" fill="#176ba7"/>
+  <text x="20" y="16" text-anchor="middle" font-size="10" font-weight="700" fill="#fff">P</text>
+  <circle cx="20" cy="25" r="7" fill="#fff"/>
+  <path d="M20 20V25H24" fill="none" stroke="#176ba7" stroke-width="1.5" stroke-linecap="round"/>
+</svg>

@@ -16,4 +16,5 @@ challenges/imgur404/processed_urls.json
 challenges/parking_converter/free_tokens.py
 challenges/parking_converter/synchronous_batch.py
 challenges/parking_converter/creds.json
+challenges/parking_converter/comparison_preview.html
 shared/free_tokens.py

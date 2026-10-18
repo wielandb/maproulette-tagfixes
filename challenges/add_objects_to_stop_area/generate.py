@@ -3,6 +3,8 @@ import math
 import random
 import copy
 import argparse
+import json
+import re
 from bisect import bisect_left, bisect_right
 from time import sleep
 from pathlib import Path
@@ -18,11 +20,49 @@ from shared import challenge_builder as mrcb  # noqa: E402
 
 # Area id for Germany to keep the query reasonably sized. Adjust if needed.
 SEARCH_AREA_ID = 3600051477
-# Tags that should be added to stop_area relations (extend as needed)
+# Independently mapped equipment and access infrastructure described in:
+# https://wiki.openstreetmap.org/wiki/DE:Leitfaden_-_Barrierefreiheit_an_Haltestellen
+# Values are either exact strings or regular expressions shared by Overpass and
+# the local matcher. These are review candidates, not proof of station ownership.
 TARGET_TAG_SETS = [
     {"amenity": "shelter"},
     {"amenity": "bench"},
-    {"amenity":"waste_basket"},
+    {"amenity": "waste_basket"},
+    {"amenity": "vending_machine", "vending": re.compile(r"(^|;)[ ]*public_transport_tickets[ ]*(;|$)")},
+    {"highway": "elevator"},
+    {"departures_board": re.compile(r"^(yes|timetable|realtime|delay)$")},
+    {"passenger_information_display": "yes"},
+    {"tourism": "information", "information": "board", "board_type": "public_transport"},
+    {"tourism": "information", "information": re.compile(r"^(phone|office)$"), "information:public_transport": "yes"},
+    {"tourism": "information", "information": "map", "map_type": "public_transport"},
+    {"tourism": "information", "information": "tactile_map"},
+    {"emergency": "phone"},
+    {"tickets:public_transport": re.compile(r"^(yes|only)$")},
+    {"amenity": "taxi"},
+    {"amenity": "toilets"},
+    {"amenity": "locker", "locker": re.compile(r"^(luggage|handbag)$")},
+    {"amenity": "trolley_bay"},
+    {"amenity": "parking"},
+    {"amenity": "bicycle_parking"},
+    # Ramps use footway/path; steps also cover escalators and stair lifts.
+    # Portable boarding aids are platform attributes, not additional objects.
+    {"highway": re.compile(r"^(footway|path|corridor|steps|crossing)$")},
+    {"railway": re.compile(r"^(subway_entrance|train_station_entrance|crossing|tram_crossing)$")},
+    {"indoor": "door"},
+    {"entrance": re.compile(r"^(yes|main|secondary|service|emergency|exit|staircase)$")},
+    {"barrier": re.compile(r"^(step|kerb|cycle_barrier)$")},
+    {"tactile_paving": re.compile(r"^(yes|contrasted|incorrect|primitive)$")},
+]
+# Displays and boarding aids can be attributes of a platform or station. Never
+# append those carriers as empty-role equipment, including lifecycle variants.
+EXCLUDED_TAG_SETS = [
+    {prefix + key: re.compile(pattern)}
+    for prefix in ("", "disused:", "abandoned:", "construction:", "proposed:")
+    for key, pattern in (
+        ("public_transport", r"^(platform|station|stop_position|stop_area|stop_area_group)$"),
+        ("railway", r"^(platform|station|halt|stop|tram_stop)$"),
+        ("highway", r"^(bus_stop|platform)$"),
+    )
 ]
 # Radius to look for candidate objects around stations (meters)
 OBJECT_TO_STATION_RADIUS = 200
@@ -84,22 +124,49 @@ def build_station_query():
     return f"[out:json][timeout:180];\n{station_selection()}\n.stations out center;"
 
 
+def tag_set_filters(tag_set):
+    """Render the same exact/regex conditions that tag_set_matches evaluates."""
+    filters = []
+    for key, value in tag_set.items():
+        operator = "~" if isinstance(value, re.Pattern) else "="
+        expected = value.pattern if isinstance(value, re.Pattern) else value
+        filters.append(f"[{json.dumps(key)}{operator}{json.dumps(expected)}]")
+    return "".join(filters)
+
+
+def tag_set_matches(tags, tag_set):
+    for key, expected in tag_set.items():
+        value = tags.get(key)
+        if isinstance(expected, re.Pattern):
+            if not isinstance(value, str) or expected.search(value) is None:
+                return False
+        elif value != expected:
+            return False
+    return True
+
+
+def matching_target_tag_set(tags):
+    if any(tag_set_matches(tags, tag_set) for tag_set in EXCLUDED_TAG_SETS):
+        return None
+    return next((tag_set for tag_set in TARGET_TAG_SETS if tag_set_matches(tags, tag_set)), None)
+
+
 def build_overpass_query(station_bbox=None, stations=None):
     if not TARGET_TAG_SETS:
         raise ValueError("TARGET_TAG_SETS must contain at least one tag set")
 
-    tag_filters = []
-    for tag_set in TARGET_TAG_SETS:
-        filter_str = "".join(f'["{k}"="{v}"]' for k, v in tag_set.items())
-        tag_filters.append(filter_str)
-
     object_queries = []
-    for filter_str in tag_filters:
+    for tag_set in TARGET_TAG_SETS:
+        filter_str = tag_set_filters(tag_set)
         object_queries.append(f'  node{filter_str}(around.stations:{OBJECT_TO_STATION_RADIUS});')
         object_queries.append(f'  way{filter_str}(around.stations:{OBJECT_TO_STATION_RADIUS});')
         object_queries.append(f'  relation{filter_str}(around.stations:{OBJECT_TO_STATION_RADIUS});')
 
     object_query_block = "\n".join(object_queries)
+    excluded_query_block = "\n".join(
+        f"  nwr.candidate_objects{tag_set_filters(tag_set)};"
+        for tag_set in EXCLUDED_TAG_SETS
+    )
 
     return f"""
 [out:json][timeout:180];
@@ -108,6 +175,10 @@ relation["public_transport"="stop_area"](around.stations:{STOP_AREA_AROUND_STATI
 (
 {object_query_block}
 )->.candidate_objects;
+(
+{excluded_query_block}
+)->.attribute_carriers;
+(.candidate_objects; - .attribute_carriers;)->.candidate_objects;
 (
   node(r.stop_areas);
   way(r.stop_areas);
@@ -309,21 +380,14 @@ def prefetch_current_relations(relation_ids, relation_cache):
 
 
 def matches_target_tags(tags: Dict[str, str]) -> bool:
-    for tag_set in TARGET_TAG_SETS:
-        if all(tags.get(k) == v for k, v in tag_set.items()):
-            return True
-    return False
+    return matching_target_tag_set(tags) is not None
 
 
 def describe_object(obj: Dict[str, str]) -> str:
     tags = obj.get("tags", {})
-    matching = None
-    for tag_set in TARGET_TAG_SETS:
-        if all(tags.get(k) == v for k, v in tag_set.items()):
-            matching = tag_set
-            break
+    matching = matching_target_tag_set(tags)
     if matching:
-        tag_desc = ", ".join(f"{k}={v}" for k, v in matching.items())
+        tag_desc = ", ".join(f"{key}={tags[key]}" for key in matching)
     else:
         tag_desc = ", ".join(f"{k}={v}" for k, v in list(tags.items())[:3])
     return f"{obj['type']}/{obj['id']} ({tag_desc})"
@@ -522,8 +586,12 @@ def main(overpass=None, output_file=None, station_bbox=None, max_tasks=None):
         relation_display_geom = member_features[0].geometry if member_features else sa_geom
         object_lines = "\n".join(f"- {describe_object(entry['element'])}" for entry in visible_objects)
         task_instruction = (
-            f"Füge alle markierten Objekte (insgesamt {len(visible_objects)}) als letzte Mitglieder "
-            f"zur Stop-Area-Relation {sa_id} hinzu:\n{object_lines}"
+            f"Prüfe die markierten Objekte (insgesamt {len(visible_objects)}) auf Zugehörigkeit "
+            f"zur Stop-Area-Relation {sa_id}. Füge nur tatsächlich zu dieser Haltestelle gehörende "
+            f"Objekte als letzte Mitglieder mit leerer Rolle hinzu. Nähe allein reicht nicht aus, "
+            f"insbesondere bei Wegen, Zugängen, Parkplätzen und Toiletten. "
+            f"Die vorbereitete Änderung enthält alle Vorschläge; entferne unpassende Objekte "
+            f"vor dem Hochladen.\n{object_lines}"
         )
         main_feature = mrcb.GeoFeature.withId(
             "relation", sa_id, relation_display_geom,
