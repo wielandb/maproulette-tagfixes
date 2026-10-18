@@ -1,32 +1,41 @@
 import sys
-sys.path.append('../../shared')
-import challenge_builder as mrcb
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
+from shared import challenge_builder as mrcb
 from tqdm import tqdm
 
-op = mrcb.Overpass()
+def main():
+    op = mrcb.Overpass()
 
-elements = op.getElementsFromQuery(
-    """
-[out:json][timeout:250];
-area(id:3600051477)->.searchArea;
-nwr["amenity"="social_facility"]["social_facility"="nursing_home"][!"social_facility:for"](area.searchArea);
-out tags center;
-    """
-)
-
-challenge = mrcb.Challenge()
-
-for element in elements:
-    geom = mrcb.getElementCenterPoint(element)
-    mainFeature = mrcb.GeoFeature.withId(
-        element["type"],
-        element["id"],
-        geom,
-        properties={}
+    elements = op.getElementsFromQuery(
+        """
+    [out:json][timeout:250];
+    area(id:3600051477)->.searchArea;
+    nwr["amenity"="social_facility"]["social_facility"="nursing_home"][!"social_facility:for"](area.searchArea);
+    out tags center;
+        """
     )
-    t = mrcb.Task(
-        mainFeature
-    )
-    challenge.addTask(t)
 
-challenge.saveToFile("nursing_home_for.json")
+    challenge = mrcb.Challenge()
+
+    for element in elements:
+        try:
+            geom = mrcb.getElementCenterPoint(element)
+            mainFeature = mrcb.GeoFeature.withId(
+                element["type"], element["id"], geom, properties={}
+            )
+        except (KeyError, TypeError, ValueError) as exc:
+            print(f"Skipping {element['type']}/{element['id']} without a usable center: {exc}")
+            continue
+        t = mrcb.Task(
+            mainFeature
+        )
+        challenge.addTask(t)
+
+    challenge.saveToFile(SCRIPT_DIR / "nursing_home_for.json")
+
+
+if __name__ == "__main__":
+    main()

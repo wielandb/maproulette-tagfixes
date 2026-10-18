@@ -4,9 +4,13 @@ import io
 import re
 import os
 import time
+import ast
+import json
+from pathlib import Path
 
 STATE_URL = 'https://planet.openstreetmap.org/replication/minute/state.txt'
 BASE_URL = 'https://planet.openstreetmap.org/replication/minute'
+CACHE_FILE = Path(__file__).resolve().parent / 'latest_created_ids.json'
 
 
 def get_latest_created_ids():
@@ -20,15 +24,20 @@ def get_latest_created_ids():
     # If there is a latest_created_ids.json file and it was last modified within the last 24 hours,
     # return the contents of that file instead of fetching new data.
     try:
-        if os.path.exists('latest_created_ids.json'):
-            last_modified = os.path.getmtime('latest_created_ids.json')
+        if os.path.exists(CACHE_FILE):
+            last_modified = os.path.getmtime(CACHE_FILE)
             if (time.time() - last_modified) < 24 * 60 * 60:
-                with open('latest_created_ids.json', 'r') as f:
-                    return eval(f.read())
+                with open(CACHE_FILE, 'r', encoding='utf-8') as f:
+                    cached_text = f.read()
+                try:
+                    return json.loads(cached_text)
+                except json.JSONDecodeError:
+                    # Older versions wrote Python dict literals instead of JSON.
+                    return ast.literal_eval(cached_text)
     except Exception as e:
         print(f"Error checking latest_created_ids.json: {e}")
     # Download state.txt
-    resp = requests.get(STATE_URL)
+    resp = requests.get(STATE_URL, timeout=60)
     resp.raise_for_status()
 
     # Parse sequenceNumber
@@ -50,7 +59,7 @@ def get_latest_created_ids():
         parts = [seq_str[i:i+3] for i in range(0, 9, 3)]
         url = f"{BASE_URL}/{parts[0]}/{parts[1]}/{parts[2]}.osc.gz"
 
-        resp = requests.get(url)
+        resp = requests.get(url, timeout=60)
         if resp.status_code != 200:
             # Missing file, skip
             continue
@@ -80,8 +89,8 @@ def get_latest_created_ids():
             break
 
     # Write max IDs to file and return them
-    with open('latest_created_ids.json', 'w') as f:
-        f.write(f"{max_ids}\n")
+    with open(CACHE_FILE, 'w', encoding='utf-8') as f:
+        json.dump(max_ids, f)
     return max_ids
 
 

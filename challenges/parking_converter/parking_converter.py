@@ -1,6 +1,10 @@
 import sys
-sys.path.append('../../shared')
-import challenge_builder as mrcb
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR.parents[1] / 'shared'))
+sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
+from shared import challenge_builder as mrcb
 from tqdm import tqdm
 import random
 import copy
@@ -15,8 +19,20 @@ except ImportError:
     aihelper = None
 
 
+def ai_conversion_available():
+    if aihelper is None or free_tokens is None:
+        print("[main] Optional AI dependencies are unavailable; using automatic conversion only")
+        return False
+    if not aihelper.has_ai_configuration():
+        print("[main] Optional AI credentials are unavailable; using automatic conversion only")
+        return False
+    return True
+
+
 # Set to an integer to stop after that many elements; keep as None to process everything.
 PROCESS_LIMIT = None
+# Stop building tasks once the challenge's maximum size has been reached.
+TASK_LIMIT = 50000
 # When True, skip tasks that would require manual conversion (only keep auto/AI results).
 ONLY_AUTO_TASKS = True
 
@@ -60,6 +76,24 @@ class PrebuiltCooperativeWork:
 def convert_base_parking_tags(tags):
     print(f"[convert_base_parking_tags] Received tags: {tags}")
     tagChanges = {} # to set a new tag: "newTag": "newValue", to unset a tag: "oldTag": None
+
+    def convert_marked_side(side):
+        old_base = f"parking:lane:{side}"
+        old_position = f"{old_base}:marked"
+        positions = {
+            "on_street": "lane",
+            "half_on_kerb": "half_on_kerb",
+            "on_kerb": "on_kerb",
+            "street_side": "street_side",
+        }
+        if old_position in tags and tags[old_position] not in positions:
+            return
+        tagChanges[f"parking:{side}"] = positions.get(tags.get(old_position), "yes")
+        tagChanges[f"parking:{side}:markings"] = "yes"
+        tagChanges[old_base] = None
+        if old_position in tags:
+            tagChanges[old_position] = None
+
     # Go thhrough all tags; if a tag contains parking and the value is "lay_by", change the value of this tag to street_side
     for key in tags:
         if "parking" in key and tags[key] == "lay_by":
@@ -157,25 +191,7 @@ def convert_base_parking_tags(tags):
             tagChanges["parking:right"] = "separate"
             tagChanges["parking:lane:right"] = None
         elif tags["parking:lane:right"] == "marked":
-            tagChanges["parking:right:markings"] = "yes"
-            tagChanges["parking:lane:right"] = None
-        elif tags["parking:lane:right"] == "marked" and "parking:lane:right:marked" in tags:
-            if tags["parking:lane:right:marked"] == "on_street":
-                tagChanges["parking:right"] = "lane"
-                tagChanges["parking:right:markings"] = "yes"
-                tagChanges["parking:lane:right:marked"] = None
-            elif tags["parking:lane:right:marked"] == "half_on_kerb":
-                tagChanges["parking:right"] = "half_on_kerb"
-                tagChanges["parking:right:markings"] = "yes"
-                tagChanges["parking:lane:right:marked"] = None
-            elif tags["parking:lane:right:marked"] == "on_kerb":
-                tagChanges["parking:right"] = "on_kerb"
-                tagChanges["parking:right:markings"] = "yes"
-                tagChanges["parking:lane:right:marked"] = None
-            elif tags["parking:lane:right:marked"] == "street_side":
-                tagChanges["parking:right"] = "street_side"
-                tagChanges["parking:right:markings"] = "yes"
-                tagChanges["parking:lane:right:marked"] = None
+            convert_marked_side("right")
     # Left side
     if "parking:lane:left" in tags:
         if tags["parking:lane:left"] == "parallel":
@@ -269,26 +285,7 @@ def convert_base_parking_tags(tags):
             tagChanges["parking:left"] = "separate"
             tagChanges["parking:lane:left"] = None
         elif tags["parking:lane:left"] == "marked":
-            tagChanges["parking:left:markings"] = "yes"
-            tagChanges["parking:left"] = "yes" # Set the generic "yes" so that it's noted that you can obviously park there, but its unclear how
-            tagChanges["parking:lane:left"] = None
-        elif tags["parking:lane:left"] == "marked" and "parking:lane:left:marked" in tags:
-            if tags["parking:lane:left:marked"] == "on_street":
-                tagChanges["parking:left"] = "lane"
-                tagChanges["parking:left:markings"] = "yes"
-                tagChanges["parking:lane:left:marked"] = None
-            elif tags["parking:lane:left:marked"] == "half_on_kerb":
-                tagChanges["parking:left"] = "half_on_kerb"
-                tagChanges["parking:left:markings"] = "yes"
-                tagChanges["parking:lane:left:marked"] = None
-            elif tags["parking:lane:left:marked"] == "on_kerb":
-                tagChanges["parking:left"] = "on_kerb"
-                tagChanges["parking:left:markings"] = "yes"
-                tagChanges["parking:lane:left:marked"] = None
-            elif tags["parking:lane:left:marked"] == "street_side":
-                tagChanges["parking:left"] = "street_side"
-                tagChanges["parking:left:markings"] = "yes"
-                tagChanges["parking:lane:left:marked"] = None
+            convert_marked_side("left")
     # Both sides
     if "parking:lane:both" in tags:
         if tags["parking:lane:both"] == "parallel":
@@ -379,25 +376,7 @@ def convert_base_parking_tags(tags):
             tagChanges["parking:both"] = "separate"
             tagChanges["parking:lane:both"] = None
         elif tags["parking:lane:both"] == "marked":
-            tagChanges["parking:both:markings"] = "yes"
-            tagChanges["parking:lane:both"] = None
-        elif tags["parking:lane:both"] == "marked" and "parking:lane:both:marked" in tags:
-            if tags["parking:lane:both:marked"] == "on_street":
-                tagChanges["parking:both"] = "lane"
-                tagChanges["parking:both:markings"] = "yes"
-                tagChanges["parking:lane:both:marked"] = None
-            elif tags["parking:lane:both:marked"] == "half_on_kerb":
-                tagChanges["parking:both"] = "half_on_kerb"
-                tagChanges["parking:both:markings"] = "yes"
-                tagChanges["parking:lane:both:marked"] = None
-            elif tags["parking:lane:both:marked"] == "on_kerb":
-                tagChanges["parking:both"] = "on_kerb"
-                tagChanges["parking:both:markings"] = "yes"
-                tagChanges["parking:lane:both:marked"] = None
-            elif tags["parking:lane:both:marked"] == "street_side":
-                tagChanges["parking:both"] = "street_side"
-                tagChanges["parking:both:markings"] = "yes"
-                tagChanges["parking:lane:both:marked"] = None
+            convert_marked_side("both")
     # Other things like conditions
     ## Ensure base parking tag when any sub-tag exists under parking:<side> in converted tags
     ## Said differently: if there is a tag parking:<side>:<something>, then there should also a tag set parking:<side> with value "yes" (but only if the tag does not exist already with a more specific value)
@@ -647,129 +626,186 @@ def are_all_old_parking_tags_gone(tags, tagChanges):
     return offendingTags
 
 
+def find_conflicting_modern_parking_tags(tags, tag_changes):
+    """Keep existing modern values, including values inherited from both sides."""
+    modern_changes = {
+        key: value for key, value in tags.items()
+        if key.startswith("parking:")
+        and not key.startswith(("parking:lane:", "parking:condition:"))
+        and key in tag_changes
+    }
+    if not modern_changes:
+        return {}
+    updated = apply_tag_changes_to_tags(tags, tag_changes)
+    conflicts = {}
+    for key, original in modern_changes.items():
+        replacement = updated.get(key)
+        if key not in updated:
+            for side in ("right", "left"):
+                base = f"parking:{side}"
+                if key == base or key.startswith(base + ":"):
+                    replacement = updated.get("parking:both" + key[len(base):])
+                    break
+        original = "street_side" if original == "lay_by" else original
+        replacement = "street_side" if replacement == "lay_by" else replacement
+        if original != replacement:
+            conflicts[key] = tags[key]
+    return conflicts
 
-op = mrcb.Overpass()
-
-elements = op.getElementsFromQuery(
-    """
-[out:json][timeout:250];
-way["parking:lane:right"];
-way["parking:lane:both"];
-way["parking:lane:left"];
-out geom;
-    """
-)
 
 
+def create_overpass_query(side):
+    if side not in ("right", "both", "left"):
+        raise ValueError("Parking side must be right, both or left")
+    return f'''[out:json][timeout:250];
+way["parking:lane:{side}"];
+out geom;'''
 
-print(f"[main] Retrieved {len(elements)} elements from Overpass")
 
-challenge = mrcb.Challenge()
+def main(output_path=None, overpass=None, use_ai=None):
+    op = overpass if overpass is not None else mrcb.Overpass()
+    # Each global tag lookup needs its own server time budget. A union of all
+    # three timed out live before reaching the output statement.
+    unique_elements = {}
+    for side in ("right", "both", "left"):
+        print(f"[main] Downloading parking:lane:{side} ways...", flush=True)
+        side_elements = op.getElementsFromQuery(create_overpass_query(side))
+        for element in side_elements:
+            unique_elements[(element["type"], element["id"])] = element
+        print(f"[main] Retrieved {len(side_elements)} ways for {side}", flush=True)
+    elements = list(unique_elements.values())
 
-random.shuffle(elements)
 
-processed_count = 0
-for element in tqdm(elements):
-    if PROCESS_LIMIT is not None and processed_count >= PROCESS_LIMIT:
-        print(f"[main] Process limit {PROCESS_LIMIT} reached, stopping early")
-        break
-    processed_count += 1
-    print(f"[main] Processing element {element['type']} {element['id']}")
-    # Convert the geometry into a LineString
-    # In the element, element["geometry"] is a dict of {"lat": float, "lon": float} for each node in the way
-    # Convert this into a list of [lon, lat] pairs
-    geom = [[node["lon"], node["lat"]] for node in element["geometry"]]
-    # geom = mrcb.getElementCenterPoint(element)
-    original_tags = copy.deepcopy(element["tags"])
-    tags_for_conversion = copy.deepcopy(element["tags"])
-    dd = convert_base_parking_tags(tags_for_conversion)
-    print(f"[main] Conversion result for {element['id']}: {dd}")
-    conversion_breakdown = build_conversion_breakdown(original_tags, dd)
-    print(f"[main] Conversion breakdown for {element['id']}: {conversion_breakdown}")
-    breakdown_text = ""
-    if conversion_breakdown:
-        breakdown_text = "\n\nAutomatic Conversion (old => new):\n" + "\n".join([f"- {line}" for line in conversion_breakdown])
 
-    # Only provide cooperative work if there are no old parking tags left
-    offendingTags = are_all_old_parking_tags_gone(tags_for_conversion, dd)
-    print(f"[main] Offending tags for element {element['id']}: {offendingTags}")
-    cooperativeWork = None
-    if offendingTags == {}:
-        cooperativeWork = mrcb.TagFix(
-            element["type"],
-            element["id"],
-            dd
-        )
-        instruction = MSG_COMPLETE
-        if breakdown_text:
-            instruction += breakdown_text
-        print(f"[main] Element {element['id']} fully converted without AI")
-    else:
-        base_instruction = MSG_INCOMPLETE_1
-        # Use dict comprehension to print "- ❌ KEY: VALUE" for all keys in offendingTags
-        base_instruction += "\n".join([f"- ❌ {key}={offendingTags[key]}" for key in offendingTags])
-        base_instruction += MSG_INCOMPLETE_2
+    print(f"[main] Retrieved {len(elements)} elements from Overpass")
 
-        ai_used = False
-        if aihelper is not None and free_tokens is not None:
-            available_model = free_tokens.get_model_with_kontingent_from_list(
-                getattr(aihelper, "DEFAULT_MODEL_ORDER", [])
+    challenge = mrcb.Challenge()
+    if use_ai is None:
+        use_ai = ai_conversion_available()
+    elif use_ai:
+        use_ai = ai_conversion_available()
+
+    random.shuffle(elements)
+
+    processed_count = 0
+    for element in tqdm(elements):
+        if PROCESS_LIMIT is not None and processed_count >= PROCESS_LIMIT:
+            print(f"[main] Process limit {PROCESS_LIMIT} reached, stopping early")
+            break
+        processed_count += 1
+        print(f"[main] Processing element {element['type']} {element['id']}")
+        # Convert the geometry into a LineString
+        # In the element, element["geometry"] is a dict of {"lat": float, "lon": float} for each node in the way
+        # Convert this into a list of [lon, lat] pairs
+        try:
+            geom = mrcb.getElementGeometry(element)
+            mainFeature = mrcb.GeoFeature.withId(
+                element["type"], element["id"], geom, properties={}
             )
-            if available_model:
-                print(f"[main] Trying AI conversion for element {element['id']} with model {available_model}")
-                try:
-                    mr_ops, _ = aihelper.request_ai_parking_conversion(
-                        element, model_order=[available_model]
-                    )
-                    if mr_ops:
-                        cooperativeWork = PrebuiltCooperativeWork(mr_ops)
-                        instruction = MSG_COMPLETE_AI
-                        ai_used = True
-                        print(f"[main] AI provided cooperative work for element {element['id']}")
-                except Exception:
-                    ai_used = False
-                    print(f"[main] AI conversion failed for element {element['id']}")
-            else:
-                print(f"[main] No AI model available for element {element['id']}")
-        else:
-            print("[main] AI helper or free_tokens not available, skipping AI conversion")
+        except (KeyError, TypeError, ValueError) as exc:
+            print(f"[main] Skipping {element['type']}/{element['id']} without usable geometry: {exc}")
+            continue
+        # geom = mrcb.getElementCenterPoint(element)
+        original_tags = copy.deepcopy(element["tags"])
+        tags_for_conversion = copy.deepcopy(element["tags"])
+        dd = convert_base_parking_tags(tags_for_conversion)
+        print(f"[main] Conversion result for {element['id']}: {dd}")
+        conversion_breakdown = build_conversion_breakdown(original_tags, dd)
+        print(f"[main] Conversion breakdown for {element['id']}: {conversion_breakdown}")
+        breakdown_text = ""
+        if conversion_breakdown:
+            breakdown_text = "\n\nAutomatic Conversion (old => new):\n" + "\n".join([f"- {line}" for line in conversion_breakdown])
 
-        if not ai_used or cooperativeWork is None:
+        # Only provide cooperative work if there are no old parking tags left
+        offendingTags = are_all_old_parking_tags_gone(tags_for_conversion, dd)
+        modern_conflicts = find_conflicting_modern_parking_tags(original_tags, dd)
+        offendingTags.update(modern_conflicts)
+        print(f"[main] Offending tags for element {element['id']}: {offendingTags}")
+        cooperativeWork = None
+        if offendingTags == {}:
             cooperativeWork = mrcb.TagFix(
-                    element["type"],
-                    element["id"],
-                    {"thistagwillneverbepresentandwillnotchangetags":None}
-                )
-            print(f"[main] Fallback cooperative work used for element {element['id']}")
-            if ONLY_AUTO_TASKS:
-                print(f"[main] Skipping element {element['id']} because ONLY_AUTO_TASKS is enabled and no AI result was available")
-                continue
-            instruction = base_instruction
+                element["type"],
+                element["id"],
+                dd
+            )
+            instruction = MSG_COMPLETE
             if breakdown_text:
                 instruction += breakdown_text
+            print(f"[main] Element {element['id']} fully converted without AI")
         else:
-            instruction = MSG_COMPLETE_AI
-    mainFeature = mrcb.GeoFeature.withId(
-        element["type"],
-        element["id"],
-        geom,
-        properties={
+            base_instruction = MSG_INCOMPLETE_1
+            # Use dict comprehension to print "- ❌ KEY: VALUE" for all keys in offendingTags
+            base_instruction += "\n".join([f"- ❌ {key}={offendingTags[key]}" for key in offendingTags])
+            base_instruction += MSG_INCOMPLETE_2
+
+            ai_used = False
+            if use_ai and not modern_conflicts:
+                try:
+                    available_model = free_tokens.get_model_with_kontingent_from_list(
+                        getattr(aihelper, "DEFAULT_MODEL_ORDER", [])
+                    )
+                except Exception:
+                    available_model = None
+                    print("[main] Optional AI quota service is unavailable; using automatic conversion only")
+                if available_model:
+                    print(f"[main] Trying AI conversion for element {element['id']} with model {available_model}")
+                    try:
+                        mr_ops, _ = aihelper.request_ai_parking_conversion(
+                            element, model_order=[available_model]
+                        )
+                        if mr_ops:
+                            cooperativeWork = PrebuiltCooperativeWork(mr_ops)
+                            instruction = MSG_COMPLETE_AI
+                            ai_used = True
+                            print(f"[main] AI provided cooperative work for element {element['id']}")
+                    except Exception:
+                        ai_used = False
+                        print(f"[main] AI conversion failed for element {element['id']}")
+                else:
+                    print(f"[main] No AI model available for element {element['id']}")
+            elif not use_ai:
+                print("[main] AI helper or free_tokens not available, skipping AI conversion")
+
+            if not ai_used or cooperativeWork is None:
+                cooperativeWork = mrcb.TagFix(
+                        element["type"],
+                        element["id"],
+                        {"thistagwillneverbepresentandwillnotchangetags":None}
+                    )
+                print(f"[main] Fallback cooperative work used for element {element['id']}")
+                if ONLY_AUTO_TASKS:
+                    print(f"[main] Skipping element {element['id']} because ONLY_AUTO_TASKS is enabled and no AI result was available")
+                    continue
+                instruction = base_instruction
+                if breakdown_text:
+                    instruction += breakdown_text
+            else:
+                instruction = MSG_COMPLETE_AI
+        mainFeature.properties.update({
             "task_instruction": instruction,
             "oneway": "yes",
-        },
-    )
-    t = mrcb.Task(
-        mainFeature,
-        additionalFeatures=[],
-        cooperativeWork=cooperativeWork
-    )
+        })
+        t = mrcb.Task(
+            mainFeature,
+            additionalFeatures=[],
+            cooperativeWork=cooperativeWork
+        )
 
 
-    challenge.addTask(t)
-    print(f"[main] Task added for element {element['id']}")
+        challenge.addTask(t)
+        print(f"[main] Task added for element {element['id']}")
+        if len(challenge.tasks) >= TASK_LIMIT:
+            print(f"[main] Task limit {TASK_LIMIT} reached, stopping early")
+            break
 
-challenge.cap()
-print("[main] Challenge capped")
+    challenge.cap()
+    print("[main] Challenge capped")
 
-challenge.saveToFile("parking_converter.json")
-print("[main] Challenge saved to parking_converter.json")
+    output_path = Path(output_path) if output_path is not None else SCRIPT_DIR / "parking_converter.json"
+    challenge.saveToFile(output_path)
+    print(f"[main] Challenge saved to {output_path}")
+    return challenge
+
+
+if __name__ == "__main__":
+    main()

@@ -1,10 +1,14 @@
 import os, sys, json
 from dataclasses import dataclass, field
 from typing import List, Dict
-import requests
+from pathlib import Path
 import geojson
 from turfpy.measurement import distance, bbox, centroid
 
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+from shared.challenge_builder import Overpass as SharedOverpass
 
 
 @dataclass
@@ -148,27 +152,14 @@ class Challenge:
             print(f"File not found: {filename}")        
         return challenge
 
-class Overpass:
-    def __init__(self, overpass_url="https://overpass-api.de/api/interpreter"):
-        self.overpass_url = overpass_url
-
-    def _response_excerpt(self, response, max_chars=500):
-        text = response.text or ""
-        text = text.replace("\n", "\\n")
-        if len(text) > max_chars:
-            return text[:max_chars] + "...[truncated]"
-        return text
+class Overpass(SharedOverpass):
+    def __init__(self, overpass_url=None, **kwargs):
+        if overpass_url is not None:
+            kwargs["overpass_urls"] = (overpass_url, *self.DEFAULT_URLS)
+        super().__init__(**kwargs)
 
     def queryElementsRaw(self, overpass_query):
-        response = requests.get(self.overpass_url, params={'data': overpass_query})
-        if response.status_code != 200:
-            snippet = self._response_excerpt(response)
-            raise ValueError(f"Invalid return data (HTTP {response.status_code}): {snippet}")
-        try:
-            return response.json()["elements"]
-        except (ValueError, KeyError, TypeError):
-            snippet = self._response_excerpt(response)
-            raise ValueError(f"Invalid return data (HTTP {response.status_code}): {snippet}")
+        return self.getElementsFromQuery(overpass_query)
 
     def queryElementsAsGeoJSON(self, overpass_query, forceGeomType=None):
         rawElements = self.queryElementsRaw(overpass_query)

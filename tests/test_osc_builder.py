@@ -2,7 +2,7 @@ import unittest
 from unittest.mock import patch, Mock
 import xml.etree.ElementTree as ET
 
-from shared.challenge_builder import OscBuilder
+from shared.challenge_builder import OscBuilder, OSMElementNotFoundError
 
 
 def _mock_response(element):
@@ -13,6 +13,26 @@ def _mock_response(element):
 
 
 class OscBuilderTests(unittest.TestCase):
+    @patch("shared.challenge_builder.requests.get")
+    def test_missing_member_list_does_not_generate_an_osc_replacing_all_members(self, mock_get):
+        mock_get.return_value = _mock_response({"type": "relation", "id": 55, "version": 2, "tags": {}})
+        builder = OscBuilder()
+        with self.assertRaisesRegex(ValueError, "Missing members"):
+            builder.addObjectToRelation(55, "node", 99)
+        self.assertEqual(builder.modify_elems, [])
+
+    @patch("shared.challenge_builder.requests.get")
+    def test_missing_objects_are_distinguished_from_temporary_api_errors(self, mock_get):
+        for status in (404, 410):
+            with self.subTest(status=status):
+                mock_get.return_value.status_code = status
+                with self.assertRaises(OSMElementNotFoundError):
+                    OscBuilder()._fetch_current_element("relation", 55)
+        mock_get.return_value.status_code = 503
+        with self.assertRaises(ValueError) as error:
+            OscBuilder()._fetch_current_element("relation", 55)
+        self.assertNotIsInstance(error.exception, OSMElementNotFoundError)
+
     def test_empty_builder_outputs_minimal_xml(self):
         builder = OscBuilder(generator="testgen")
         xml_str = builder.to_string()

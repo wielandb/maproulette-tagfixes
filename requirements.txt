@@ -1,1 +1,6 @@
 osm-humanized-opening-hours
+requests
+tqdm
+shapely>=2
+-r challenges/stopsign-directions/requirements.txt
+-r challenges/imgur404/requirements.txt

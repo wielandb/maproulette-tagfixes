@@ -39,11 +39,15 @@ def _load_creds(path: Optional[Path] = None) -> Dict[str, str]:
     }
 
 
-CREDS = _load_creds()
-
-# Stored prompt that contains the full conversion instructions.
-PROMPT_ID = CREDS["prompt_id"]
-PROMPT_VERSION = CREDS["prompt_version"]
+def has_ai_configuration() -> bool:
+    """Return whether the optional SDK and local credentials are available."""
+    if OpenAI is None:
+        return False
+    try:
+        _load_creds()
+    except (OSError, ValueError, KeyError, TypeError):
+        return False
+    return True
 
 # Prefer small (free) models first, then fall back to larger ones if tokens remain.
 DEFAULT_MODEL_ORDER = [
@@ -323,18 +327,23 @@ def request_ai_parking_conversion(
     if OpenAI is None:
         raise ImportError("The openai package is not installed.")
 
+    try:
+        creds = _load_creds()
+    except (OSError, ValueError, KeyError, TypeError):
+        return None, None
+
     preferred_models = model_order or DEFAULT_MODEL_ORDER
     model = free_tokens.get_model_with_kontingent_from_list(preferred_models)
     if not model:
         return None, None
 
-    client = OpenAI(api_key=CREDS["openai_key"])  # type: ignore[arg-type]
+    client = OpenAI(api_key=creds["openai_key"])  # type: ignore[arg-type]
     input_text = _element_to_input_text(element)
 
     try:
         response = client.responses.create(
             model=model,
-            prompt={"id": PROMPT_ID, "version": PROMPT_VERSION},
+            prompt={"id": creds["prompt_id"], "version": creds["prompt_version"]},
             input=[
                 {
                     "role": "user",

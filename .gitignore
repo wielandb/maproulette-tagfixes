@@ -1,5 +1,6 @@
 
 *.pyc
+.venv/
 /challenges/stopsign-directions/.stopsignvenv
 /challenges/imgur404/user_reports
 *.pbf

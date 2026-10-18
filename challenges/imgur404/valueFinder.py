@@ -3,38 +3,48 @@ import json
 import requests
 import osmium
 import sys
-import time
 from typing import Dict, List, Optional, Literal
 from dataclasses import dataclass, asdict
 from tqdm import tqdm
 from enum import Enum
+from pathlib import Path
 
-import procPercent as pp
+SCRIPT_DIR = Path(__file__).resolve().parent
+REPOSITORY_ROOT = SCRIPT_DIR.parents[1]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+from shared.challenge_builder import Overpass
+
+if __package__:
+    from . import procPercent as pp
+else:
+    import procPercent as pp
 import random
+from time import sleep
 
-GEOFABRIK_JSON = 'geofabrik_leafs.json'
-MATCHES_FILE = 'matches.json'
+GEOFABRIK_JSON = SCRIPT_DIR / 'geofabrik_leafs.json'
+MATCHES_FILE = SCRIPT_DIR / 'matches.json'
+PROCESSED_URLS_FILE = SCRIPT_DIR / 'processed_urls.json'
 SEARCH_SEQUENCE = 'i.imgur.com'
-OVERPASS_API = "https://overpass-api.de/api/interpreter"
 PROCCESSED_URLS = []
-OVERPASS_RETRY_DELAY = 10
-OVERPASS_RETRY_COUNT = 5
+OVERPASS_RETRY_DELAY = 5
+OVERPASS_RETRY_COUNT = 6
+_overpass_client: Optional[Overpass] = None
 
 
 def post_overpass_query(query: str) -> Optional[dict]:
-    """Post an Overpass query with retry delay on failure."""
-    for attempt in range(1, OVERPASS_RETRY_COUNT + 1):
-        try:
-            response = requests.post(OVERPASS_API, data={"data": query}, timeout=60)
-            response.raise_for_status()
-            return response.json()
-        except requests.RequestException as exc:
-            print(f"Overpass request failed (attempt {attempt}/{OVERPASS_RETRY_COUNT}): {exc}")
-            if attempt < OVERPASS_RETRY_COUNT:
-                print(f"Retrying in {OVERPASS_RETRY_DELAY} seconds...")
-                time.sleep(OVERPASS_RETRY_DELAY)
-    print("Giving up after multiple Overpass request failures.")
-    return None
+    """Use shared retries and fallbacks while retaining optional center lookup."""
+    global _overpass_client
+    try:
+        if _overpass_client is None:
+            _overpass_client = Overpass(
+                max_attempts=OVERPASS_RETRY_COUNT,
+                retry_delay=OVERPASS_RETRY_DELAY,
+            )
+        return {"elements": _overpass_client.getElementsFromQuery(query)}
+    except ValueError as exc:
+        print(f"Could not fetch Overpass elements: {exc}")
+        return None
 
 
 class MatchType(str, Enum):
@@ -63,8 +73,14 @@ class ValueFinderHandler(osmium.SimpleHandler):
         self.match_type = match_type
         self.location_handler = osmium.geom.WKBFactory()    
 
-    def get_center_coordinates(self, osm_type: str, osm_id: int) -> Optional[Center]:
+    def get_center_coordinates(self, osm_type: str, osm_id: int, visited=None) -> Optional[Center]:
         """Fetch center coordinates for ways and relations using Overpass API"""
+        if visited is None:
+            visited = set()
+        object_key = (osm_type, osm_id)
+        if object_key in visited:
+            return None
+        visited.add(object_key)
         query = f"""
         [out:json];
         {osm_type}({osm_id});
@@ -73,7 +89,6 @@ class ValueFinderHandler(osmium.SimpleHandler):
         data = post_overpass_query(query)
         if not data:
             return None
-        print(data)
         if data["elements"]:
             element = data["elements"][0]
             if "center" in element:
@@ -85,11 +100,11 @@ class ValueFinderHandler(osmium.SimpleHandler):
                 # In this case, we recursively call the function for each member until we find something that we can use as a display center.
                 center = None
                 for member in element["members"]:
-                    if member["type"] == "node":
+                    if "lat" in member and "lon" in member:
                         center = Center(lat=member["lat"], lon=member["lon"])
                         break
-                    elif member["type"] in ["way", "relation"]:
-                        center = self.get_center_coordinates(member["type"], member["ref"])
+                    elif member["type"] in ["node", "way", "relation"]:
+                        center = self.get_center_coordinates(member["type"], member["ref"], visited)
                         if center:
                             break
                 return center
@@ -117,7 +132,7 @@ class ValueFinderHandler(osmium.SimpleHandler):
                 element["center"] = asdict(center)
             else:
                 # Fallback to using the first node's coordinates if available
-                if obj.nodes:
+                if osm_type == 'way' and obj.nodes and obj.nodes[0].location.valid():
                     first_node = obj.nodes[0]
                     element["lat"] = first_node.location.lat
                     element["lon"] = first_node.location.lon
@@ -154,14 +169,18 @@ class ValueFinderHandler(osmium.SimpleHandler):
     
     def display_progress(self, osm_type, osm_id):
         if random.randint(1, 100000) == 42:
-            max_values = pp.get_latest_created_ids()
-            if osm_type in max_values:
-                max_id = max_values[osm_type]
+            try:
+                max_values = pp.get_latest_created_ids()
+                max_id = max_values.get(osm_type)
+                if max_id is None or max_id <= 0:
+                    return
                 if osm_id > max_id:
                     print(f"Warning: {osm_type} ID {osm_id} is greater than current max {max_id}.")
                     return
-                percentile = pp.get_id_percentile(osm_type, osm_id)
+                percentile = osm_id / max_id * 100
                 print(f"{percentile:.2f}% of {osm_type} searched.")
+            except (requests.RequestException, RuntimeError, ValueError, OSError) as exc:
+                print(f"Could not update scan progress: {exc}")
 
     def node(self, n):
         self.check_tags('node', n)
@@ -177,27 +196,35 @@ class ValueFinderHandler(osmium.SimpleHandler):
 
 
 def download_file(url, local_filename):
-    with requests.get(url, stream=True) as r:
-        r.raise_for_status()
-        # Get file size from headers
-        total_size = int(r.headers.get('content-length', 0))
-        # Set up progress bar
-        progress_bar = tqdm(
-            total=total_size,
-            unit='iB',
-            unit_scale=True,
-            desc=f'Downloading {local_filename}'
-        )
-        with open(local_filename, 'wb') as f:
-            for chunk in r.iter_content(chunk_size=8192):
-                size = f.write(chunk)
-                progress_bar.update(size)
-        progress_bar.close()
+    local_filename = Path(local_filename)
+    partial = local_filename.with_name(local_filename.name + '.part')
+    for attempt in range(3):
+        try:
+            with requests.get(url, stream=True, timeout=(10, 120)) as response:
+                response.raise_for_status()
+                with tqdm(total=int(response.headers.get('content-length', 0)),
+                          unit='iB', unit_scale=True,
+                          desc=f'Downloading {local_filename.name}') as progress_bar:
+                    with open(partial, 'wb') as output:
+                        for chunk in response.iter_content(chunk_size=65536):
+                            progress_bar.update(output.write(chunk))
+            partial.replace(local_filename)
+            return
+        except requests.RequestException as exc:
+            partial.unlink(missing_ok=True)
+            status = getattr(exc.response, 'status_code', None)
+            if attempt == 2 or (status is not None and status < 500 and status not in (408, 429)):
+                raise
+            sleep(30 if status == 429 else 5 * (2 ** attempt))
 
 def main():
+    # A successful scan without matches still needs a readable result file.
+    if not os.path.exists(MATCHES_FILE):
+        with open(MATCHES_FILE, 'w', encoding='utf-8') as f:
+            json.dump([], f)
     # Load processed URLs from file if it exists
-    if os.path.exists('processed_urls.json'):
-        with open('processed_urls.json', 'r', encoding='utf-8') as f:
+    if os.path.exists(PROCESSED_URLS_FILE):
+        with open(PROCESSED_URLS_FILE, 'r', encoding='utf-8') as f:
             try:
                 PROCCESSED_URLS = json.load(f)
             except json.JSONDecodeError:
@@ -216,18 +243,18 @@ def main():
         if pbf_url in PROCCESSED_URLS:
             print(f"Skipping already processed URL: {pbf_url}")
             continue
-        local_filename = os.path.basename(pbf_url)
+        local_filename = SCRIPT_DIR / os.path.basename(pbf_url)
         print(f"Downloading {pbf_url} ...")
         # Only download the file if local_filename does not exist
         download_file(pbf_url, local_filename)
         handler = ValueFinderHandler(SEARCH_SEQUENCE, MATCHES_FILE)
-        handler.apply_file(local_filename)
+        handler.apply_file(str(local_filename))
         print(f"Deleting {local_filename} ...")
         os.remove(local_filename)
         # Add the downloaded URL to the processed URLs list
         PROCCESSED_URLS.append(pbf_url)
         # Save the processed URLs to a file
-        with open('processed_urls.json', 'w', encoding='utf-8') as f:
+        with open(PROCESSED_URLS_FILE, 'w', encoding='utf-8') as f:
             json.dump(PROCCESSED_URLS, f, ensure_ascii=False, indent=4)
     print("Done.")
 
@@ -245,9 +272,9 @@ def find_value_objects(
     Returns:
         List of OSM objects that match the search criteria
     """
-    # Delete the matches file if it exists
-    if os.path.exists(MATCHES_FILE):
-        os.remove(MATCHES_FILE)
+    # Reset results even when this scan finds no matching objects.
+    with open(MATCHES_FILE, 'w', encoding='utf-8') as f:
+        json.dump([], f)
     
     # Set up global search sequence
     global SEARCH_SEQUENCE
@@ -262,17 +289,18 @@ def find_value_objects(
         return []
 
     for pbf_url in tqdm(leafs):
-        local_filename = os.path.basename(pbf_url)
+        local_filename = SCRIPT_DIR / os.path.basename(pbf_url)
         print(f"Downloading {pbf_url} ...")
         download_file(pbf_url, local_filename)
 
         handler = ValueFinderHandler(search_sequence, MATCHES_FILE, match_type)
-        handler.apply_file(local_filename)
+        handler.apply_file(str(local_filename))
         print(f"Deleting {local_filename} ...")
         os.remove(local_filename)
     
     # Return the results in Overpass format
-    return get_overpass_style_elements()
+    with open(MATCHES_FILE, 'r', encoding='utf-8') as f:
+        return json.load(f)
 
 def get_center_coordinates(osm_type: str, osm_id: int) -> Optional[Center]:
     """Fetch center coordinates for ways and relations using Overpass API"""

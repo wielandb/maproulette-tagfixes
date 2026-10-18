@@ -1,13 +1,15 @@
 import re
 import sys
+from pathlib import Path
 from dataclasses import dataclass
 from datetime import datetime, timedelta, timezone
 from typing import Callable, List, Optional, Pattern, Tuple
 
 import requests
 
-sys.path.append('../../shared')
-import challenge_builder as mrcb
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
+from shared import challenge_builder as mrcb
 
 try:
     from tqdm import tqdm
@@ -177,14 +179,14 @@ def fetch_history_info(osm_type: str, osm_id: int) -> HistoryInfo:
     try:
         response = requests.get(url, timeout=30)
     except requests.RequestException:
-        return HistoryInfo(None, None, None)
+        return HistoryInfo(None, None, None, None)
 
     if response.status_code != 200:
-        return HistoryInfo(None, None, None)
+        return HistoryInfo(None, None, None, None)
     try:
         payload = response.json()
     except ValueError:
-        return HistoryInfo(None, None, None)
+        return HistoryInfo(None, None, None, None)
 
     versions = payload.get("elements", [])
     name_value: Optional[str] = None
@@ -315,7 +317,11 @@ out tags geom;
             cooperative is not None
         )
 
-        feature = build_main_feature(element, instruction_text)
+        try:
+            feature = build_main_feature(element, instruction_text)
+        except (KeyError, TypeError, ValueError) as exc:
+            print(f"Skipping {element['type']}/{element['id']} without usable geometry: {exc}")
+            continue
         if cooperative:
             task = mrcb.Task(feature, cooperativeWork=cooperative)
         else:
@@ -324,7 +330,7 @@ out tags geom;
         challenge.addTask(task)
 
     print("Saving challenge...")
-    challenge.saveToFile("note_abgerissen.json")
+    challenge.saveToFile(SCRIPT_DIR / "note_abgerissen.json")
 
 
 if __name__ == "__main__":

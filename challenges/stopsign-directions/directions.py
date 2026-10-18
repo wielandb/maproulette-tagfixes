@@ -1,14 +1,36 @@
-import xml.etree.ElementTree as ET
+import importlib.util
+import json
 import math
-import requests
+from pathlib import Path
+import sys
 from tqdm import tqdm
 import geojson
-import challenge_builder as mrcb
-from time import sleep
 
-import json
+
+def _load_local_challenge_builder():
+    # Other generators have a different builder with an incompatible API.
+    module_name = "stopsign_directions_challenge_builder"
+    spec = importlib.util.spec_from_file_location(
+        module_name, Path(__file__).resolve().with_name("challenge_builder.py")
+    )
+    module = importlib.util.module_from_spec(spec)
+    sys.modules[module_name] = module
+    spec.loader.exec_module(module)
+    return module
+
+
+mrcb = _load_local_challenge_builder()
+
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
+if str(REPOSITORY_ROOT) not in sys.path:
+    sys.path.insert(0, str(REPOSITORY_ROOT))
+
+from shared.challenge_builder import Overpass
 
 SHORT_WAY_LENGTH_THRESHOLD_METERS = 50
+DEFAULT_OUTPUT_PATH = Path(__file__).resolve().parent / "stop_give_way_sign_direction_challenge.json"
+SEARCH_AREAS = (3600051477, 3600016239, 3600051701)
+STATIC_MAP_SIZE = "480x312"
 
 
 def haversine_distance(lat1, lon1, lat2, lon2):
@@ -24,8 +46,12 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 
 class OSMDataHandler:
     def __init__(self, json_data):
-        self.data = json.loads(json_data)
-        self.elements = self.data.get("elements", [])
+        self.data = json.loads(json_data) if isinstance(json_data, str) else json_data
+        # An element can occur more than once in the Overpass response.
+        self.elements = list({
+            (element["type"], element["id"]): element
+            for element in self.data.get("elements", [])
+        }.values())
         # Create a dictionary for the ways for faster access
         self.ways = {way["id"]: way for way in self.get_ways()}
         # Create a dictionary for the nodes for faster access
@@ -183,9 +209,6 @@ class OSMDataHandler:
             return True
         return False
 
-stop_give_way_sign_direction_challenge = mrcb.Challenge()
-#stop_give_way_sign_direction_challenge.loadFromFile("stop_give_way_sign_direction_challenge.json")
-
 INSTRUCTIONS = """
 (Klappe dieses Feld auf, um die Visualisierung zu sehen!)
 ![](IMAGE_URL_PLACEHOLDER)
@@ -204,8 +227,7 @@ Bitte überprüfe, ob die Richtung korrekt ist. (Und überprüfe natürlich gern
 
 """
 
-def addToChallenge(data):
-    global stop_give_way_sign_direction_challenge
+def addToChallenge(data, challenge):
     SIGNTYPE_MAP = {
         "give_way": "Vorfahrt gewähren-Schild",
         "stop": "Stoppschild"
@@ -226,101 +248,80 @@ def addToChallenge(data):
         additionalFeatures=[],
         cooperativeWork=cooperativeWork
     )
-    stop_give_way_sign_direction_challenge.addTask(t)
+    challenge.addTask(t)
 
 
-import requests, os, json
+def create_overpass_query(sign_type):
+    if sign_type not in ("give_way", "stop"):
+        raise ValueError(f"Unsupported sign type: {sign_type}")
+    areas = "\n".join(
+        f'    node["highway"="{sign_type}"][!"direction"](area:{area_id});'
+        for area_id in SEARCH_AREAS
+    )
+    return f"[out:json][timeout:250];\n(\n{areas}\n);\nway(bn);\n(._;>;);\nout body;"
 
-static_map_size = "480x312"
 
-# Get all the way ids from ways that contain a highway=give_way node by getting https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A250%5D%3B%0Aarea%28id%3A3600051477%29-%3E.searchArea%3B%0Anode%5B%22highway%22%3D%22give_way%22%5D%5B%21%22direction%22%5D%28area.searchArea%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B
-print("Downloading data from Overpass API...")
-response = requests.get("https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A250%5D%3B%0Aarea%28id%3A3600051477%29-%3E.searchArea%3B%0Anode%5B%22highway%22%3D%22give_way%22%5D%5B%21%22direction%22%5D%28area.searchArea%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B%0Aarea%28id%3A3600016239%29-%3E.searchArea2%3B%0Anode%5B%22highway%22%3D%22give_way%22%5D%5B%21%22direction%22%5D%28area.searchArea2%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B%0Aarea%28id%3A3600051701%29-%3E.searchArea3%3B%0Anode%5B%22highway%22%3D%22give_way%22%5D%5B%21%22direction%22%5D%28area.searchArea3%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B")
-print(f"Overpass response status: {response.status_code} {response.reason}")
-print(f"Response URL: {response.url}")
-print(f"Response headers: {dict(response.headers)}")
-print(f"Response body length: {len(response.text)}")
-snippet = response.text[:1000].replace('\n', ' ') if response.text else ''
-print(f"Response body snippet (first 1000 chars): {snippet!r}")
-data_handler = OSMDataHandler(response.text)
-ways = data_handler.get_ways()
-print("Sorting ways...")
-# For each of those ways, get the full way xml by calling osm.org/api/0.6/way/way_id/full
-for way in tqdm(ways):
-    way_id = way["id"]
-    # Guard clause to skip *ways* that are problematic
-    if data_handler.discardWayForTags(data_handler.getWayTags(way_id)):
-        continue
-    give_way_nodes = data_handler.get_give_way_nodes(way_id)
-    for give_way_node in give_way_nodes:
-        # Guard clauses to skip *nodes in a way* that are problematic (first or last node in a way, part of more than one way)
-        if data_handler.isFirstOrLastNodeInWay(give_way_node, way_id):
+def populate_challenge(challenge, data_handler, sign_type):
+    if sign_type not in ("give_way", "stop"):
+        raise ValueError(f"Unsupported sign type: {sign_type}")
+    get_sign_nodes = (
+        data_handler.get_give_way_nodes if sign_type == "give_way"
+        else data_handler.get_stop_nodes
+    )
+    icon_type = "yield" if sign_type == "give_way" else "stop"
+    for way in tqdm(data_handler.get_ways()):
+        way_id = way["id"]
+        if data_handler.discardWayForTags(data_handler.getWayTags(way_id)):
             continue
-        if data_handler.getNumberOfWaysNodeIsPartOf(give_way_node) > 1:
+        if len(way.get("nodes", [])) < 2 or any(
+            data_handler.find_node_by_id(node_id) is None
+            or not isinstance(data_handler.find_node_by_id(node_id).get("lat"), (int, float))
+            or not isinstance(data_handler.find_node_by_id(node_id).get("lon"), (int, float))
+            for node_id in way.get("nodes", [])
+        ):
+            print(f"Skipping way/{way_id} with incomplete node coordinates", file=sys.stderr)
             continue
-        direction = data_handler.determine_give_way_direction(give_way_node, way_id)
-        angle = data_handler.calculate_rotation_angle(give_way_node, way_id)
-        int_angle = int(angle)
-        sign_lat, sign_long = data_handler.get_node_coordinates(give_way_node)
-        #print(f"Way ID: {way_id}, Give Way Node: {give_way_node}, Direction: {direction}, Angle: {angle}")
-        lat, lon = data_handler.get_node_coordinates(give_way_node)
-        url = f"https://haukauntrie.de/online/api/staticmaps/staticmap.php?center={lat},{lon}&zoom=19&size={static_map_size}&maptype=mapnikde&markers={lat},{lon},icon_yield_{int_angle}"
-        datatoappend = {
-            "way_id": way_id,
-            "node_id": give_way_node,
-            "direction": direction,
-            "angle": angle,
-            "img_url": url,
-            "sign_type": "give_way",
-            "sign_lat": sign_lat,
-            "sign_long": sign_long
-        }
-        addToChallenge(datatoappend)
-
-## Now, we do the same for highway=stop
-
-# Get all the way ids from ways that contain a highway=stop node by getting https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A250%5D%3B%0Aarea%28id%3A3600051477%29-%3E.searchArea%3B%0Anode%5B%22highway%22%3D%22stop%22%5D%5B%21%22direction%22%5D%28area.searchArea%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B
-print("Downloading data from Overpass API...")
-response = requests.get("https://overpass-api.de/api/interpreter?data=%5Bout%3Ajson%5D%5Btimeout%3A250%5D%3B%0Aarea%28id%3A3600051477%29-%3E.searchArea%3B%0Anode%5B%22highway%22%3D%22stop%22%5D%5B%21%22direction%22%5D%28area.searchArea%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B%0Aarea%28id%3A3600016239%29-%3E.searchArea2%3B%0Anode%5B%22highway%22%3D%22stop%22%5D%5B%21%22direction%22%5D%28area.searchArea2%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B%0Aarea%28id%3A3600051701%29-%3E.searchArea3%3B%0Anode%5B%22highway%22%3D%22stop%22%5D%5B%21%22direction%22%5D%28area.searchArea3%29%3B%0Away%28bn%29%3B%0A%28._%3B%3E%3B%29%3B%0Aout%20body%3B")
-data_handler = OSMDataHandler(response.text)
-ways = data_handler.get_ways()
-print("Sorting ways...")
-
-# For each of those ways, get the full way xml by calling osm.org/api/0.6/way/way_id/full
-for way in tqdm(ways):
-    way_id = way["id"]
-    # Guard clause to skip ways that are problematic
-    if data_handler.discardWayForTags(data_handler.getWayTags(way_id)):
-        continue
-    stop_nodes = data_handler.get_stop_nodes(way_id)
-    for stop_node in stop_nodes:
-        # Guard clauses to skip *nodes in a way* that are problematic (first or last node in a way, part of more than one way)
-        if data_handler.isFirstOrLastNodeInWay(give_way_node, way_id):
-            continue
-        if data_handler.getNumberOfWaysNodeIsPartOf(give_way_node) > 1:
-            continue
-        direction = data_handler.determine_give_way_direction(stop_node, way_id)
-        angle = data_handler.calculate_rotation_angle(stop_node, way_id)
-        int_angle = int(angle)
-        sign_lat, sign_long = data_handler.get_node_coordinates(stop_node)
-        #print(f"Way ID: {way_id}, Stop Node: {stop_node}, Direction: {direction}, Angle: {angle}")
-        lat, lon = data_handler.get_node_coordinates(stop_node)
-        url = f"https://haukauntrie.de/online/api/staticmaps/staticmap.php?center={lat},{lon}&zoom=19&size={static_map_size}&maptype=mapnikde&markers={lat},{lon},icon_stop_{int_angle}"
-        toadddata = {
-            "way_id": way_id,
-            "node_id": stop_node,
-            "direction": direction,
-            "angle": angle,
-            "img_url": url,
-            "sign_type": "stop",
-            "sign_lat": sign_lat,
-            "sign_long": sign_long
-        }
-        addToChallenge(toadddata)
+        for sign_node in get_sign_nodes(way_id):
+            # Recursing from a way also returns signs that were not selected.
+            if "direction" in data_handler.find_node_by_id(sign_node).get("tags", {}):
+                continue
+            if data_handler.isFirstOrLastNodeInWay(sign_node, way_id):
+                continue
+            if data_handler.getNumberOfWaysNodeIsPartOf(sign_node) > 1:
+                continue
+            direction = data_handler.determine_give_way_direction(sign_node, way_id)
+            angle = data_handler.calculate_rotation_angle(sign_node, way_id)
+            lat, lon = data_handler.get_node_coordinates(sign_node)
+            url = (
+                "https://haukauntrie.de/online/api/staticmaps/staticmap.php"
+                f"?center={lat},{lon}&zoom=19&size={STATIC_MAP_SIZE}&maptype=mapnikde"
+                f"&markers={lat},{lon},icon_{icon_type}_{int(angle)}"
+            )
+            addToChallenge({
+                "way_id": way_id,
+                "node_id": sign_node,
+                "direction": direction,
+                "angle": angle,
+                "img_url": url,
+                "sign_type": sign_type,
+                "sign_lat": lat,
+                "sign_long": lon,
+            }, challenge)
 
 
-stop_give_way_sign_direction_challenge.saveToFile("stop_give_way_sign_direction_challenge.json")
+def main(output_path=None, overpass=None):
+    challenge = mrcb.Challenge()
+    overpass = overpass if overpass is not None else Overpass()
+    for sign_type in ("give_way", "stop"):
+        print(f"Downloading {sign_type} data from Overpass API...")
+        elements = overpass.getElementsFromQuery(create_overpass_query(sign_type))
+        data_handler = OSMDataHandler({"elements": elements})
+        print("Sorting ways...")
+        populate_challenge(challenge, data_handler, sign_type)
+    # Save only once both downloads and all task generation have succeeded.
+    challenge.saveToFile(DEFAULT_OUTPUT_PATH if output_path is None else output_path)
+    return challenge
 
 
-
-
+if __name__ == "__main__":
+    main()
