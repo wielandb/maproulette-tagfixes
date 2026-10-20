@@ -21,21 +21,27 @@ generators and uses `.venv` when available. It returns a nonzero exit code if an
 generator fails. Generation needs internet access; the Imgur scan downloads
 Geofabrik extracts and can take a long time.
 
+All challenge generators stop at 50,000 tasks or before adding a task that would
+exceed 99 MB (99,000,000 bytes), whichever comes first. Exactly reaching a limit
+is allowed. The byte limit includes the complete UTF-8 JSON sequence, geometry,
+instructions, cooperative edits, record separators and platform-native line
+endings. An oversized task is excluded and generation ends; it is not skipped
+in favour of later tasks. Completed tasks are saved normally, and no further
+per-task processing is performed. Initial candidate/context downloads may still
+be necessary before tasks can be built. The shared writer rechecks both limits
+and replaces the previous output atomically.
+
 The parking converter works without the optional AI helper. AI conversion requires
 its separate local configuration and dependencies. Each old parking-side tag is
 queried separately to stay within Overpass's global query timeout; duplicate ways
 are merged before conversion.
-The parking generator stops at 50,000 tasks or before adding a task that would
-exceed 100 MiB (104,857,600 bytes), whichever comes first. The byte limit includes
-the complete UTF-8 JSON sequence with descriptions, geometry, cooperative edits,
-record separators and platform-native line endings. The task that would exceed
-the limit is not included; the completed tasks are still saved normally.
 
 The stop-area generator also accepts `--bbox SOUTH WEST NORTH EAST`, `--output`
 and `--max-tasks` for a smaller live run. Without these options it processes all
 of Germany in batches of 100 stations, merging results and excluding existing
 members across all batches. Current relations are read from the OSM editing API
-in batches of 100 before building OSC changes. The [stop-area catalogue and
+in batches of up to 100 as needed while building OSC changes; reaching an output
+limit avoids further relation batches. The [stop-area catalogue and
 review instructions](challenges/add_objects_to_stop_area/README.md) describe the
 equipment and access infrastructure included. For example, after creating the
 output directory:
@@ -89,7 +95,9 @@ Run the offline regression tests with:
 Every newly generated parking task includes a Markdown comparison table with
 four small views: old left/right and proposed new left/right. The first row
 shows position and orientation, with explicit parking-space markings in the
-diagram. Further rows compare markings, restrictions, fees, authentication,
+diagram. Each side shows only half the street, from its outer pavement to the
+street centre; adjacent left and right images form a complete street. Further
+rows compare markings, restrictions, fees, authentication,
 maximum stay, access, capacity, and any supported conditional rules that occur.
 Changed rows are flagged. Left/right are relative to the OSM way direction,
 indicated by an upward arrow, rather than the map or driving direction.

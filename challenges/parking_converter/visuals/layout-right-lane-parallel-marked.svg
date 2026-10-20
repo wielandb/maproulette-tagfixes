@@ -1,35 +1,47 @@
 <?xml version="1.0" encoding="UTF-8"?>
-<svg xmlns="http://www.w3.org/2000/svg" width="64" height="70" viewBox="0 0 100 110" role="img" aria-labelledby="title desc">
+<svg xmlns="http://www.w3.org/2000/svg" width="40" height="116" viewBox="0 0 52 150" role="img" aria-labelledby="title desc">
   <title id="title">Right side: carriageway</title>
-  <desc id="desc">Two cyan parallel parking symbols on the right side, carriageway. White outlines show explicit parking-space markings. The arrow points in the OSM way direction; left and right are relative to that arrow.</desc>
+  <desc id="desc">Muted parallel parked-car symbols on the right side, carriageway. Thin white outlines show explicit parking-space markings. Only this half of the street is shown, from its rounded outer edge to the flat street-center cut. Left and right are relative to the upward OSM way direction, as indicated by the surrounding table.</desc>
   <style>text{font-family:Arial,Helvetica,sans-serif}</style>
-  <defs><clipPath id="frame"><rect x="0.5" y="0.5" width="99" height="109" rx="7"/></clipPath></defs>
+  <defs><clipPath id="frame"><path d="M0 0H29A23 23 0 0 1 52 23V127A23 23 0 0 1 29 150H0Z"/></clipPath><filter id="car-shadow" x="-40%" y="-25%" width="180%" height="160%"><feGaussianBlur stdDeviation="0.7"/></filter></defs>
   <g clip-path="url(#frame)">
-  <path d="M0 0H100V100H0Z" fill="#e9dfc9"/>
-  <path d="M24 0H76V100H24Z" fill="#596575"/>
-  <path d="M24 0V100M76 0V100" fill="none" stroke="#f4ebd7" stroke-width="2"/>
-  <rect x="43" y="80" width="14" height="17" rx="7" fill="#334353"/>
-  <path d="M50 93V85M46.5 88.5 50 85 53.5 88.5" fill="none" stroke="#fff" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round"/>
-  <g transform="translate(63 31) rotate(0)">
-    <rect x="-8" y="-14" width="16" height="28" rx="1" fill="none" stroke="#fff" stroke-width="1.6"/>
-    <rect x="-5.5" y="-10.5" width="11" height="21" rx="3" fill="#24c8df" stroke="#123f53" stroke-width="1.2"/>
-    <path d="M-3.7-6.3Q0-7.7 3.7-6.3L3-2.3H-3Z" fill="#174f65"/>
-    <path d="M-3 4H3L3.6 7Q0 8-3.6 7Z" fill="#174f65"/>
-    <path d="M-5.8-5H-6.7M5.8-5H6.7" stroke="#123f53" stroke-width="1.5" stroke-linecap="round"/>
-    <path d="M-3.5-9H-1.5M1.5-9H3.5" stroke="#edfbff" stroke-width="1" stroke-linecap="round"/>
+  <g transform="translate(52 0) scale(-1 1)">
+  <path d="M0 0H52V150H0Z" fill="#9d9f9b"/>
+  <path d="M26 0H52V150H26Z" fill="#828683"/>
+  <path d="M26 0V150" fill="none" stroke="#ced0c9" stroke-width="1"/>
   </g>
-  <g transform="translate(63 66) rotate(0)">
-    <rect x="-8" y="-14" width="16" height="28" rx="1" fill="none" stroke="#fff" stroke-width="1.6"/>
-    <rect x="-5.5" y="-10.5" width="11" height="21" rx="3" fill="#24c8df" stroke="#123f53" stroke-width="1.2"/>
-    <path d="M-3.7-6.3Q0-7.7 3.7-6.3L3-2.3H-3Z" fill="#174f65"/>
-    <path d="M-3 4H3L3.6 7Q0 8-3.6 7Z" fill="#174f65"/>
-    <path d="M-5.8-5H-6.7M5.8-5H6.7" stroke="#123f53" stroke-width="1.5" stroke-linecap="round"/>
-    <path d="M-3.5-9H-1.5M1.5-9H3.5" stroke="#edfbff" stroke-width="1" stroke-linecap="round"/>
+  <g transform="translate(18 32) rotate(0) scale(0.9)">
+    <rect x="-6.5" y="-12.5" width="13" height="25" rx="0.6" fill="none" stroke="#f0f0e9" stroke-width="1" opacity="0.9"/>
+    <rect x="-4.9" y="-10" width="11" height="22" rx="2.8" fill="#202626" opacity="0.22" filter="url(#car-shadow)"/>
+    <path d="M-5.7-7V-3M5.7-7V-3M-5.7 4V8M5.7 4V8" stroke="#303636" stroke-width="1.7" stroke-linecap="round"/>
+    <rect x="-5.3" y="-10.8" width="10.6" height="21.6" rx="2.7" fill="#74808a" stroke="#505958" stroke-width="0.65"/>
+    <path d="M-3.8-7.1Q0-8.3 3.8-7.1L3-2.9H-3Z" fill="#30393e"/>
+    <path d="M-3 4H3L3.7 7.6Q0 8.7-3.7 7.6Z" fill="#353e41"/>
+    <path d="M-4-2V3M4-2V3" stroke="#d6dcda" stroke-opacity="0.3" stroke-width="0.6"/>
+    <path d="M-3.1-9.4H-1.6M1.6-9.4H3.1" stroke="#e7e7d7" stroke-opacity="0.8" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M-3.2 9.3H-1.9M1.9 9.3H3.2" stroke="#71585a" stroke-width="0.8" stroke-linecap="round"/>
   </g>
-  <rect x="86" y="3" width="12" height="13" rx="3" fill="#fffdf8"/>
-  <text x="92" y="12.5" text-anchor="middle" font-size="9" font-weight="700" fill="#304756">R</text>
-  <rect y="100" width="100" height="10" fill="#fffdf8"/>
-  <text x="50" y="107.5" text-anchor="middle" font-size="8" fill="#304756">carriageway</text>
+  <g transform="translate(18 75) rotate(0) scale(0.9)">
+    <rect x="-6.5" y="-12.5" width="13" height="25" rx="0.6" fill="none" stroke="#f0f0e9" stroke-width="1" opacity="0.9"/>
+    <rect x="-4.9" y="-10" width="11" height="22" rx="2.8" fill="#202626" opacity="0.22" filter="url(#car-shadow)"/>
+    <path d="M-5.7-7V-3M5.7-7V-3M-5.7 4V8M5.7 4V8" stroke="#303636" stroke-width="1.7" stroke-linecap="round"/>
+    <rect x="-5.3" y="-10.8" width="10.6" height="21.6" rx="2.7" fill="#9a6265" stroke="#505958" stroke-width="0.65"/>
+    <path d="M-3.8-7.1Q0-8.3 3.8-7.1L3-2.9H-3Z" fill="#30393e"/>
+    <path d="M-3 4H3L3.7 7.6Q0 8.7-3.7 7.6Z" fill="#353e41"/>
+    <path d="M-4-2V3M4-2V3" stroke="#d6dcda" stroke-opacity="0.3" stroke-width="0.6"/>
+    <path d="M-3.1-9.4H-1.6M1.6-9.4H3.1" stroke="#e7e7d7" stroke-opacity="0.8" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M-3.2 9.3H-1.9M1.9 9.3H3.2" stroke="#71585a" stroke-width="0.8" stroke-linecap="round"/>
   </g>
-  <rect x="0.5" y="0.5" width="99" height="109" rx="7" fill="none" stroke="#b5bec5"/>
+  <g transform="translate(18 118) rotate(0) scale(0.9)">
+    <rect x="-6.5" y="-12.5" width="13" height="25" rx="0.6" fill="none" stroke="#f0f0e9" stroke-width="1" opacity="0.9"/>
+    <rect x="-4.9" y="-10" width="11" height="22" rx="2.8" fill="#202626" opacity="0.22" filter="url(#car-shadow)"/>
+    <path d="M-5.7-7V-3M5.7-7V-3M-5.7 4V8M5.7 4V8" stroke="#303636" stroke-width="1.7" stroke-linecap="round"/>
+    <rect x="-5.3" y="-10.8" width="10.6" height="21.6" rx="2.7" fill="#d4cba5" stroke="#505958" stroke-width="0.65"/>
+    <path d="M-3.8-7.1Q0-8.3 3.8-7.1L3-2.9H-3Z" fill="#30393e"/>
+    <path d="M-3 4H3L3.7 7.6Q0 8.7-3.7 7.6Z" fill="#353e41"/>
+    <path d="M-4-2V3M4-2V3" stroke="#d6dcda" stroke-opacity="0.3" stroke-width="0.6"/>
+    <path d="M-3.1-9.4H-1.6M1.6-9.4H3.1" stroke="#e7e7d7" stroke-opacity="0.8" stroke-width="0.9" stroke-linecap="round"/>
+    <path d="M-3.2 9.3H-1.9M1.9 9.3H3.2" stroke="#71585a" stroke-width="0.8" stroke-linecap="round"/>
+  </g>
+  </g>
 </svg>

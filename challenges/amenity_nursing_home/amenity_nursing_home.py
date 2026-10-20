@@ -43,6 +43,8 @@ def main():
     random.shuffle(elements)
 
     for element in tqdm(elements):
+        if challenge.limit_reached:
+            break
         isForSeniors = checkIsForSeniors(element["tags"])
         isAssistedLiving = checkIsAssistedLiving(element["tags"])
         try:
@@ -76,7 +78,8 @@ def main():
             additionalFeatures=[],
             cooperativeWork=cooperativeWork
         )
-        challenge.addTask(t)
+        if not challenge.addTask(t):
+            break
 
     challenge.saveToFile(SCRIPT_DIR / "amenity_nursing_home.json")
 

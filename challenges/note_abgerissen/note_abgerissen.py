@@ -303,6 +303,8 @@ out tags geom;
     challenge = mrcb.Challenge()
 
     for element in tqdm(elements):
+        if challenge.limit_reached:
+            break
         if not needs_task(element):
             continue
 
@@ -327,7 +329,8 @@ out tags geom;
         else:
             task = mrcb.Task(feature)
 
-        challenge.addTask(task)
+        if not challenge.addTask(task):
+            break
 
     print("Saving challenge...")
     challenge.saveToFile(SCRIPT_DIR / "note_abgerissen.json")

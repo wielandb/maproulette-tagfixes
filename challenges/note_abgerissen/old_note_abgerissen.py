@@ -1,6 +1,9 @@
 import sys
-sys.path.append('../../shared')
-import challenge_builder as mrcb
+from pathlib import Path
+
+SCRIPT_DIR = Path(__file__).resolve().parent
+sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
+from shared import challenge_builder as mrcb
 from tqdm import tqdm
 
 def needs_task(element):
@@ -24,6 +27,8 @@ out tags center;
 challenge = mrcb.Challenge()
 
 for element in tqdm(elements):
+    if challenge.limit_reached:
+        break
     if needs_task(element):
         geom = mrcb.getElementCenterPoint(element)
         mainFeature = mrcb.GeoFeature.withId(
@@ -35,6 +40,7 @@ for element in tqdm(elements):
         t = mrcb.Task(
             mainFeature
         )
-        challenge.addTask(t)
+        if not challenge.addTask(t):
+            break
 
 challenge.saveToFile("note_abgerissen.json")

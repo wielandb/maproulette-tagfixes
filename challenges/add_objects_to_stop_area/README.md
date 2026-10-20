@@ -54,6 +54,13 @@ OSC change. Remove unsuitable additions before uploading; if none belong, do
 not apply the change. Existing members, roles and relation tags are preserved;
 new equipment and access members use an empty role.
 
+Generation stops at 50,000 tasks or before exceeding 99,000,000 bytes of complete
+UTF-8 task records. A task that would exceed the byte budget is not included.
+Current OSM relations are fetched in batches of up to 100 as needed; no further
+batches are requested after reaching a limit. `--max-tasks` can impose a smaller
+sample limit. Candidate collection still completes before task generation so
+that existing memberships can be excluded across station batches.
+
 Platform, station and stop-position objects are excluded from equipment
 suggestions, including legacy tags and their `disused:`, `abandoned:`,
 `construction:` and `proposed:` forms. An attribute such as

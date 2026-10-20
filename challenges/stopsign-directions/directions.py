@@ -27,7 +27,18 @@ if str(REPOSITORY_ROOT) not in sys.path:
 
 from shared.challenge_builder import Overpass
 
-SHORT_WAY_LENGTH_THRESHOLD_METERS = 50
+MAX_JUNCTION_DISTANCE_METERS = 60
+CONTEXT_RADIUS_METERS = 120
+MIN_DISTANCE_ADVANTAGE_METERS = 10
+MIN_DISTANCE_RATIO = 2
+CONTEXT_BATCH_SIZE = 100
+ROAD_HIGHWAYS = frozenset({
+    "motorway", "trunk", "primary", "secondary", "tertiary",
+    "motorway_link", "trunk_link", "primary_link", "secondary_link",
+    "tertiary_link", "unclassified", "residential", "living_street",
+    "service", "road", "track",
+})
+MINOR_SERVICES = frozenset({"driveway", "parking_aisle", "drive-through", "emergency_access"})
 DEFAULT_OUTPUT_PATH = Path(__file__).resolve().parent / "stop_give_way_sign_direction_challenge.json"
 SEARCH_AREAS = (3600051477, 3600016239, 3600051701)
 STATIC_MAP_SIZE = "480x312"
@@ -45,7 +56,7 @@ def haversine_distance(lat1, lon1, lat2, lon2):
 
 
 class OSMDataHandler:
-    def __init__(self, json_data):
+    def __init__(self, json_data, candidate_node_ids=None):
         self.data = json.loads(json_data) if isinstance(json_data, str) else json_data
         # An element can occur more than once in the Overpass response.
         self.elements = list({
@@ -57,6 +68,44 @@ class OSMDataHandler:
         # Create a dictionary for the nodes for faster access
         self.nodes = {node["id"]: node for node in self.get_nodes()}
         self.node_way_counts = self._calculate_node_way_counts()
+        self.candidate_node_ids = (
+            None if candidate_node_ids is None else set(candidate_node_ids)
+        )
+        self.road_neighbors = {}
+        self.road_way_ids = {}
+        self.incomplete_road_nodes = set()
+        for way in self.get_ways():
+            node_ids = way.get("nodes", [])
+            tags = way.get("tags", {})
+            # A driveway cannot establish a priority-road junction, but a sign
+            # shared with that driveway still has an ambiguous way direction.
+            if tags.get("highway") in ROAD_HIGHWAYS and tags.get("area") != "yes":
+                for node_id in set(node_ids):
+                    self.road_way_ids.setdefault(node_id, set()).add(way["id"])
+            if not self.is_road(way):
+                continue
+            for first, second in zip(node_ids, node_ids[1:]):
+                if not self.has_coordinates(first) or not self.has_coordinates(second):
+                    self.incomplete_road_nodes.update((first, second))
+                    continue
+                if first != second:
+                    self.road_neighbors.setdefault(first, set()).add(second)
+                    self.road_neighbors.setdefault(second, set()).add(first)
+
+    @staticmethod
+    def is_road(way):
+        tags = way.get("tags", {})
+        return (
+            tags.get("highway") in ROAD_HIGHWAYS and tags.get("area") != "yes"
+            and not (tags.get("highway") == "service" and tags.get("service") in MINOR_SERVICES)
+        )
+
+    def has_coordinates(self, node_id):
+        node = self.nodes.get(node_id, {})
+        return all(
+            isinstance(node.get(key), (int, float)) and math.isfinite(node[key])
+            for key in ("lat", "lon")
+        )
     
     def get_nodes(self):
         return [element for element in self.elements if element["type"] == "node"]
@@ -67,7 +116,7 @@ class OSMDataHandler:
     def _calculate_node_way_counts(self):
         counts = {}
         for way in self.get_ways():
-            for node_id in way.get("nodes", []):
+            for node_id in set(way.get("nodes", [])):
                 counts[node_id] = counts.get(node_id, 0) + 1
         return counts
     
@@ -77,41 +126,79 @@ class OSMDataHandler:
     def find_way_by_id(self, way_id):
         return self.ways.get(way_id, None)
 
-    def determine_give_way_direction(self, give_way_node_id, way_id, short_way_threshold_meters=SHORT_WAY_LENGTH_THRESHOLD_METERS):
+    def determine_give_way_direction(self, give_way_node_id, way_id):
+        """Infer travel towards a clearly nearer road junction, or abstain.
+
+        The context query must supply every road within CONTEXT_RADIUS_METERS
+        of the sign. Way endpoints and node density are not junction evidence.
+        """
         way = self.find_way_by_id(way_id)
         if not way:
             raise ValueError(f"Way {way_id} not found.")
         node_ids = way["nodes"]
         if give_way_node_id not in node_ids:
             raise ValueError("Given node ID not found in any way.")
-        way_length_meters = self.calculate_way_length_meters(way_id)
-        if way_length_meters < short_way_threshold_meters:
-            return self.determine_direction_by_way_intersections(give_way_node_id, way_id)
-        return self._determine_direction_by_node_position(give_way_node_id, node_ids)
+        if (not self.is_road(way) or len(node_ids) < 3
+                or node_ids[0] == node_ids[-1]
+                or len(node_ids) != len(set(node_ids))
+                or self.road_way_ids.get(give_way_node_id) != {way_id}
+                or len(self.road_neighbors.get(give_way_node_id, ())) != 2
+                or not all(self.has_coordinates(node_id) for node_id in node_ids)):
+            return None
+        index = node_ids.index(give_way_node_id)
+        if index == 0 or index == len(node_ids) - 1:
+            return None
+        before = self._trace_to_junction(give_way_node_id, node_ids[index - 1])
+        after = self._trace_to_junction(give_way_node_id, node_ids[index + 1])
+        if before[0] is not None and before[0] == after[0]:
+            return None  # A loop reaches the same junction from both sides.
+        for direction, nearer, farther in (
+            ("backward", before, after), ("forward", after, before),
+        ):
+            if nearer[0] is None or nearer[1] > MAX_JUNCTION_DISTANCE_METERS:
+                continue
+            required_distance = max(
+                nearer[1] * MIN_DISTANCE_RATIO,
+                nearer[1] + MIN_DISTANCE_ADVANTAGE_METERS,
+            )
+            if farther[1] >= required_distance:
+                return direction
+        return None
 
-    def _determine_direction_by_node_position(self, node_id, node_ids):
-        node_index = node_ids.index(node_id)
-        distance_to_start = node_index
-        distance_to_end = len(node_ids) - 1 - node_index
-        if distance_to_start == distance_to_end:
-            length_to_start = self._calculate_path_length_meters(node_ids[:node_index + 1])
-            length_to_end = self._calculate_path_length_meters(node_ids[node_index:])
-            return "backward" if length_to_start < length_to_end else "forward"
-        return "backward" if distance_to_start < distance_to_end else "forward"
+    def _trace_to_junction(self, sign_id, next_node_id):
+        """Return (junction id or None, measured distance/lower bound).
+
+        An incomplete/dead-end branch gives only the distance traversed, never
+        infinity. It cannot beat a closer junction without enough evidence.
+        """
+        previous, current = sign_id, next_node_id
+        visited = {sign_id}
+        distance = 0.0
+        while current not in visited:
+            distance += haversine_distance(
+                *self.get_node_coordinates(previous), *self.get_node_coordinates(current)
+            )
+            if distance > CONTEXT_RADIUS_METERS:
+                return None, float(CONTEXT_RADIUS_METERS)
+            if current in self.incomplete_road_nodes:
+                return None, distance
+            neighbors = self.road_neighbors.get(current, set())
+            if len(neighbors) >= 3:
+                return current, distance
+            # Do not look past another stopping point to a different junction.
+            if self.nodes[current].get("tags", {}).get("highway") in {"stop", "give_way"}:
+                return None, distance
+            if len(neighbors) != 2:
+                return None, distance
+            visited.add(current)
+            following = neighbors - {previous}
+            if len(following) != 1:
+                return None, distance
+            previous, current = current, following.pop()
+        return None, distance
 
     def determine_direction_by_way_intersections(self, give_way_node_id, way_id):
-        way = self.find_way_by_id(way_id)
-        if not way:
-            raise ValueError(f"Way {way_id} not found.")
-        node_ids = way["nodes"]
-        if give_way_node_id not in node_ids:
-            raise ValueError("Given node ID not found in any way.")
-        give_way_index = node_ids.index(give_way_node_id)
-        nodes_before = node_ids[:give_way_index]
-        nodes_after = node_ids[give_way_index + 1:]
-        before_connections = self.count_additional_way_memberships(nodes_before)
-        after_connections = self.count_additional_way_memberships(nodes_after)
-        return "forward" if before_connections > after_connections else "backward"
+        return self.determine_give_way_direction(give_way_node_id, way_id)
 
     def count_additional_way_memberships(self, node_ids):
         total = 0
@@ -139,7 +226,11 @@ class OSMDataHandler:
             prev_lat, prev_lon = lat, lon
         return total_length
 
-    def calculate_rotation_angle(self, give_way_node_id, way_id):
+    def calculate_rotation_angle(self, give_way_node_id, way_id, direction=None):
+        if direction is None:
+            direction = self.determine_give_way_direction(give_way_node_id, way_id)
+        if direction not in {"forward", "backward"}:
+            return None
         way = self.find_way_by_id(way_id)
         if give_way_node_id in way["nodes"]:
             node_ids = way["nodes"]
@@ -154,7 +245,6 @@ class OSMDataHandler:
             lat1, lon1 = nodes[prev_node_id]
             lat2, lon2 = nodes[give_way_node_id]
             angle = math.degrees(math.atan2(lon2 - lon1, lat2 - lat1))
-            direction = self.determine_give_way_direction(give_way_node_id, way_id)
             if direction == "backward":
                 angle = (angle + 180) % 360
             if angle < 0:
@@ -200,7 +290,7 @@ class OSMDataHandler:
 
     def discardWayForTags(self, tags):
         # Determines if a way should be discarded based on its tags
-        if not "highway" in tags:
+        if not self.is_road({"tags": tags}):
             return True
         if "oneway" in tags and (tags["oneway"] == "yes" or tags["oneway"] == "-1"):
             for tag in tags:
@@ -248,7 +338,7 @@ def addToChallenge(data, challenge):
         additionalFeatures=[],
         cooperativeWork=cooperativeWork
     )
-    challenge.addTask(t)
+    return challenge.addTask(t)
 
 
 def create_overpass_query(sign_type):
@@ -258,18 +348,39 @@ def create_overpass_query(sign_type):
         f'    node["highway"="{sign_type}"][!"direction"](area:{area_id});'
         for area_id in SEARCH_AREAS
     )
-    return f"[out:json][timeout:250];\n(\n{areas}\n);\nway(bn);\n(._;>;);\nout body;"
+    return f"[out:json][timeout:250];\n(\n{areas}\n);\nout body;"
+
+
+def create_context_query(node_ids):
+    """Load complete road topology within the inference search radius.
+
+    Only loading parents of sign ways misses junctions beyond a way split.
+    Keep all immediate parents too, so separately drawn signs can be rejected.
+    """
+    ids = ",".join(str(int(node_id)) for node_id in sorted(set(node_ids)))
+    if not ids:
+        raise ValueError("At least one sign node is required")
+    return (
+        f"[out:json][timeout:250];\nnode(id:{ids})->.signs;\n(\n"
+        "  way(bn.signs);\n"
+        f'  way(around.signs:{CONTEXT_RADIUS_METERS})["highway"];\n'
+        ");\n(._;>;);\nout body;"
+    )
 
 
 def populate_challenge(challenge, data_handler, sign_type):
     if sign_type not in ("give_way", "stop"):
         raise ValueError(f"Unsupported sign type: {sign_type}")
+    if challenge.limit_reached:
+        return
     get_sign_nodes = (
         data_handler.get_give_way_nodes if sign_type == "give_way"
         else data_handler.get_stop_nodes
     )
     icon_type = "yield" if sign_type == "give_way" else "stop"
     for way in tqdm(data_handler.get_ways()):
+        if challenge.limit_reached:
+            return
         way_id = way["id"]
         if data_handler.discardWayForTags(data_handler.getWayTags(way_id)):
             continue
@@ -282,15 +393,23 @@ def populate_challenge(challenge, data_handler, sign_type):
             print(f"Skipping way/{way_id} with incomplete node coordinates", file=sys.stderr)
             continue
         for sign_node in get_sign_nodes(way_id):
+            if challenge.limit_reached:
+                return
             # Recursing from a way also returns signs that were not selected.
-            if "direction" in data_handler.find_node_by_id(sign_node).get("tags", {}):
+            if (data_handler.candidate_node_ids is not None
+                    and sign_node not in data_handler.candidate_node_ids):
+                continue
+            tags = data_handler.find_node_by_id(sign_node).get("tags", {})
+            if "direction" in tags or "stop:direction" in tags:
                 continue
             if data_handler.isFirstOrLastNodeInWay(sign_node, way_id):
                 continue
-            if data_handler.getNumberOfWaysNodeIsPartOf(sign_node) > 1:
-                continue
             direction = data_handler.determine_give_way_direction(sign_node, way_id)
-            angle = data_handler.calculate_rotation_angle(sign_node, way_id)
+            if direction is None:
+                continue
+            angle = data_handler.calculate_rotation_angle(sign_node, way_id, direction)
+            if angle is None:
+                continue
             lat, lon = data_handler.get_node_coordinates(sign_node)
             url = (
                 "https://haukauntrie.de/online/api/staticmaps/staticmap.php"
@@ -307,18 +426,35 @@ def populate_challenge(challenge, data_handler, sign_type):
                 "sign_lat": lat,
                 "sign_long": lon,
             }, challenge)
+            if challenge.limit_reached:
+                return
 
 
 def main(output_path=None, overpass=None):
     challenge = mrcb.Challenge()
     overpass = overpass if overpass is not None else Overpass()
     for sign_type in ("give_way", "stop"):
+        if challenge.limit_reached:
+            break
         print(f"Downloading {sign_type} data from Overpass API...")
-        elements = overpass.getElementsFromQuery(create_overpass_query(sign_type))
-        data_handler = OSMDataHandler({"elements": elements})
-        print("Sorting ways...")
-        populate_challenge(challenge, data_handler, sign_type)
-    # Save only once both downloads and all task generation have succeeded.
+        candidates = overpass.getElementsFromQuery(create_overpass_query(sign_type))
+        candidate_ids = sorted({
+            element["id"] for element in candidates
+            if element["type"] == "node"
+            and element.get("tags", {}).get("highway") == sign_type
+            and "direction" not in element.get("tags", {})
+            and "stop:direction" not in element.get("tags", {})
+        })
+        for offset in range(0, len(candidate_ids), CONTEXT_BATCH_SIZE):
+            if challenge.limit_reached:
+                break
+            batch = candidate_ids[offset:offset + CONTEXT_BATCH_SIZE]
+            elements = overpass.getElementsFromQuery(create_context_query(batch))
+            data_handler = OSMDataHandler({"elements": elements}, candidate_node_ids=batch)
+            print("Sorting ways...")
+            populate_challenge(challenge, data_handler, sign_type)
+    # A reached limit is a successful partial run; download errors still leave
+    # the previous output untouched.
     challenge.saveToFile(DEFAULT_OUTPUT_PATH if output_path is None else output_path)
     return challenge
 

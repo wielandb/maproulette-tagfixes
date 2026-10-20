@@ -8,7 +8,7 @@ from turfpy.measurement import distance, bbox, centroid
 REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 if str(REPOSITORY_ROOT) not in sys.path:
     sys.path.insert(0, str(REPOSITORY_ROOT))
-from shared.challenge_builder import Overpass as SharedOverpass
+from shared.challenge_builder import Challenge as SharedChallenge, Overpass as SharedOverpass
 
 
 @dataclass
@@ -118,20 +118,11 @@ class Task:
         features = [self.mainFeature.toGeoJSON()] + [f.toGeoJSON() for f in self.additionalFeatures]
         return geojson.FeatureCollection(features, **({"cooperativeWork": self.cooperativeWork.toGeoJSON()} if self.cooperativeWork else {}))
 
-@dataclass
-class Challenge:
-    def __init__(self):
-        self.tasks = []
+    def to_dict(self):
+        return self.toGeoJSON()
 
-    def addTask(self, task):
-        self.tasks.append(task)
 
-    def saveToFile(self, filename):
-        with open(filename, 'w', encoding="UTF-8") as f:
-            for task in self.tasks:
-                f.write('\x1E')
-                json.dump(task.toGeoJSON(), f, ensure_ascii=False)
-                f.write('\n')
+class Challenge(SharedChallenge):
 
     @classmethod
     def loadFromFile(cls, filename):
@@ -145,9 +136,12 @@ class Challenge:
                 task_jsons = [tj for tj in task_jsons if tj.strip()]
                 
                 for task_json in task_jsons:
+                    if challenge.limit_reached:
+                        break
                     geojson_data = json.loads(task_json)
                     task = Task.fromGeoJSON(geojson_data)
-                    challenge.addTask(task)
+                    if not challenge.addTask(task):
+                        break
         except FileNotFoundError:
             print(f"File not found: {filename}")        
         return challenge

@@ -22,7 +22,7 @@ def load_generator():
 
 
 class ParkingTaskLimitTests(unittest.TestCase):
-    def run_generator(self, task_limit, process_limit=None, first_value="no"):
+    def run_generator(self, task_limit, process_limit=None, first_value="no", shared_task_limit=None):
         generator = load_generator()
         elements = [
             {
@@ -46,6 +46,8 @@ class ParkingTaskLimitTests(unittest.TestCase):
             stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
             stack.enter_context(patch.object(generator, "TASK_LIMIT", task_limit))
             stack.enter_context(patch.object(generator, "PROCESS_LIMIT", process_limit))
+            if shared_task_limit is not None:
+                stack.enter_context(patch.object(generator.mrcb, "MAX_TASKS", shared_task_limit))
             stack.enter_context(patch.object(generator.random, "shuffle"))
             stack.enter_context(patch.object(generator, "convert_base_parking_tags", side_effect=record_conversion))
             save = stack.enter_context(patch.object(generator.mrcb.Challenge, "saveToFile"))
@@ -69,6 +71,11 @@ class ParkingTaskLimitTests(unittest.TestCase):
         self.assertEqual(ids, ["way/2", "way/3"])
         self.assertEqual(converted_names, ["Street 1", "Street 2", "Street 3"])
 
+    def test_shared_count_hardcap_cannot_be_raised_by_the_local_setting(self):
+        ids, converted_names = self.run_generator(task_limit=99_999, shared_task_limit=2)
+        self.assertEqual(ids, ["way/1", "way/2"])
+        self.assertEqual(converted_names, ["Street 1", "Street 2"])
+
 
 class ParkingOutputSizeTests(unittest.TestCase):
     def elements(self, count=4):
@@ -82,7 +89,7 @@ class ParkingOutputSizeTests(unittest.TestCase):
         ]
 
     def write_challenge(self, elements, byte_limit=1024 * 1024, task_limit=50000,
-                        conversion_changes=None, complete_message=None):
+                        conversion_changes=None, complete_message=None, shared_byte_limit=None):
         generator = load_generator()
         overpass = Mock()
         overpass.getElementsFromQuery.side_effect = [copy.deepcopy(elements), [], []]
@@ -91,6 +98,8 @@ class ParkingOutputSizeTests(unittest.TestCase):
             stack.enter_context(contextlib.redirect_stdout(io.StringIO()))
             stack.enter_context(patch.object(generator, "TASK_LIMIT", task_limit))
             stack.enter_context(patch.object(generator, "MAX_OUTPUT_BYTES", byte_limit))
+            if shared_byte_limit is not None:
+                stack.enter_context(patch.object(generator.mrcb, "MAX_OUTPUT_BYTES", shared_byte_limit))
             stack.enter_context(patch.object(generator, "PROCESS_LIMIT", None))
             stack.enter_context(patch.object(generator.random, "shuffle"))
             if conversion_changes is not None:
@@ -103,6 +112,8 @@ class ParkingOutputSizeTests(unittest.TestCase):
             contents = output.read_bytes()
             self.assertEqual(output.stat().st_size, len(contents))
             self.assertLessEqual(output.stat().st_size, byte_limit)
+            if shared_byte_limit is not None:
+                self.assertLessEqual(output.stat().st_size, shared_byte_limit)
         return challenge, contents
 
     def ids(self, challenge):
@@ -167,6 +178,15 @@ class ParkingOutputSizeTests(unittest.TestCase):
         challenge, contents = self.write_challenge(self.elements(), task_limit=2)
         self.assertEqual(self.ids(challenge), ["way/1", "way/2"])
         self.assertLess(len(contents), 1024 * 1024)
+
+    def test_shared_byte_hardcap_cannot_be_raised_by_the_local_setting(self):
+        elements = self.elements()
+        _, two_records = self.write_challenge(elements, task_limit=2)
+        challenge, contents = self.write_challenge(
+            elements, byte_limit=1024 * 1024, shared_byte_limit=len(two_records) - 1,
+        )
+        self.assertEqual(self.ids(challenge), ["way/1"])
+        self.assertEqual(contents, two_records[:two_records.index(b"\x1e", 1)])
 
 
 if __name__ == "__main__":

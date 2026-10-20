@@ -504,13 +504,21 @@ def main(overpass=None, output_file=None, station_bbox=None, max_tasks=None):
         grouped[nearest_sa["id"]]["objects"].append({"element": obj, "distance": distance})
 
     print(f"[main] Grouped candidates into {len(grouped)} stop_area relations")
-    if max_tasks is None:
-        prefetch_current_relations(list(grouped), relation_cache)
-    else:
-        prefetch_current_relations(list(grouped)[:max(100, max_tasks)], relation_cache)
-    for sa_id, info in tqdm(grouped.items(), total=len(grouped)):
+    relation_ids = list(grouped)
+    prefetched_through = 0
+    for relation_index, (sa_id, info) in enumerate(tqdm(grouped.items(), total=len(grouped))):
+        if challenge.limit_reached:
+            break
         if max_tasks is not None and len(challenge.tasks) >= max_tasks:
             break
+        # Fetch only the next editing-API batch. Stop requesting further batches
+        # when either the task count or serialized output budget is exhausted.
+        if relation_index >= prefetched_through:
+            remaining = challenge.max_tasks - len(challenge.tasks)
+            if max_tasks is not None:
+                remaining = min(remaining, max_tasks - len(challenge.tasks))
+            prefetched_through = min(len(relation_ids), relation_index + min(100, remaining))
+            prefetch_current_relations(relation_ids[relation_index:prefetched_through], relation_cache)
         stop_area = info["stop_area"]
         objects = info["objects"]
         try:
@@ -605,13 +613,14 @@ def main(overpass=None, output_file=None, station_bbox=None, max_tasks=None):
             }, STOP_AREA_STYLE),
         )
 
-        challenge.addTask(
+        if not challenge.addTask(
             mrcb.Task(
                 mainFeature=main_feature,
                 additionalFeatures=[*member_features, *object_features],
                 cooperativeWork=cooperative_work,
             )
-        )
+        ):
+            break
 
     challenge.cap()
     challenge.saveToFile(output_file)

@@ -21,6 +21,8 @@ def main():
     challenge = mrcb.Challenge()
 
     for element in elements:
+        if challenge.limit_reached:
+            break
         try:
             geom = mrcb.getElementCenterPoint(element)
             mainFeature = mrcb.GeoFeature.withId(
@@ -32,7 +34,8 @@ def main():
         t = mrcb.Task(
             mainFeature
         )
-        challenge.addTask(t)
+        if not challenge.addTask(t):
+            break
 
     challenge.saveToFile(SCRIPT_DIR / "nursing_home_for.json")
 

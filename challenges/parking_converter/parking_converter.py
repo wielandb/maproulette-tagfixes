@@ -12,8 +12,6 @@ from challenges.parking_converter.parking_comparison import (
 from tqdm import tqdm
 import random
 import copy
-import json
-import os
 try:
     import free_tokens
 except ImportError:
@@ -38,9 +36,9 @@ def ai_conversion_available():
 # Set to an integer to stop after that many elements; keep as None to process everything.
 PROCESS_LIMIT = None
 # Stop building tasks once the challenge's maximum size has been reached.
-TASK_LIMIT = 50000
-# GitHub's single-file limit, measured as serialized UTF-8 JSON-sequence bytes.
-MAX_OUTPUT_BYTES = 100 * 1024 * 1024
+TASK_LIMIT = mrcb.MAX_TASKS
+# Serialized UTF-8 JSON-sequence bytes, including record separators/newlines.
+MAX_OUTPUT_BYTES = mrcb.MAX_OUTPUT_BYTES
 # When True, skip tasks that would require manual conversion (only keep auto/AI results).
 ONLY_AUTO_TASKS = True
 
@@ -671,13 +669,8 @@ out geom;'''
 
 
 def task_output_size_bytes(task):
-    """Match Challenge.saveToFile, including record separator and text newline.
-
-    The shared writer uses ensure_ascii=False and platform-native newlines, so
-    Unicode must be measured in UTF-8 bytes and Windows needs a CRLF allowance.
-    """
-    payload = json.dumps(task.to_dict(), ensure_ascii=False).encode("utf-8")
-    return len(payload) + len(("\x1e" + os.linesep).encode("utf-8"))
+    """Measure the exact record that the shared challenge writer saves."""
+    return len(mrcb.serialize_task_record(task))
 
 
 def main(output_path=None, overpass=None, use_ai=None):
@@ -697,7 +690,7 @@ def main(output_path=None, overpass=None, use_ai=None):
 
     print(f"[main] Retrieved {len(elements)} elements from Overpass")
 
-    challenge = mrcb.Challenge()
+    challenge = mrcb.Challenge(max_tasks=TASK_LIMIT, max_output_bytes=MAX_OUTPUT_BYTES)
     if use_ai is None:
         use_ai = ai_conversion_available()
     elif use_ai:
@@ -706,8 +699,9 @@ def main(output_path=None, overpass=None, use_ai=None):
     random.shuffle(elements)
 
     processed_count = 0
-    output_size_bytes = 0
     for element in tqdm(elements):
+        if challenge.limit_reached:
+            break
         if PROCESS_LIMIT is not None and processed_count >= PROCESS_LIMIT:
             print(f"[main] Process limit {PROCESS_LIMIT} reached, stopping early")
             break
@@ -821,22 +815,12 @@ def main(output_path=None, overpass=None, use_ai=None):
         )
 
 
-        task_size_bytes = task_output_size_bytes(t)
-        if output_size_bytes + task_size_bytes > MAX_OUTPUT_BYTES:
-            print(
-                f"[main] Output size limit {MAX_OUTPUT_BYTES} bytes would be exceeded "
-                f"({output_size_bytes} bytes + next task {task_size_bytes} bytes); "
-                "stopping before adding the next task"
-            )
+        if not challenge.addTask(t):
+            print(f"[main] {challenge.limit_reason}; stopping before adding the next task")
             break
-        challenge.addTask(t)
-        output_size_bytes += task_size_bytes
         print(f"[main] Task added for element {element['id']}")
-        if len(challenge.tasks) >= TASK_LIMIT:
-            print(f"[main] Task limit {TASK_LIMIT} reached, stopping early")
-            break
-        if output_size_bytes == MAX_OUTPUT_BYTES:
-            print(f"[main] Output size limit {MAX_OUTPUT_BYTES} bytes reached, stopping early")
+        if challenge.limit_reached:
+            print(f"[main] {challenge.limit_reason}; stopping early")
             break
 
     challenge.cap()
@@ -845,7 +829,7 @@ def main(output_path=None, overpass=None, use_ai=None):
     output_path = Path(output_path) if output_path is not None else SCRIPT_DIR / "parking_converter.json"
     challenge.saveToFile(output_path)
     print(f"[main] Challenge saved to {output_path}")
-    print(f"[main] Saved {len(challenge.tasks)} tasks, {output_size_bytes} bytes")
+    print(f"[main] Saved {len(challenge.tasks)} tasks, {challenge.output_size_bytes} bytes")
     return challenge
 
 

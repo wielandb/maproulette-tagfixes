@@ -121,8 +121,11 @@ class ChallengeFileTests(unittest.TestCase):
             filename = Path(directory) / "challenge.json"
             filename.write_text("previous output", encoding="utf-8")
             challenge = Challenge()
-            challenge.addTask(Task(GeoFeature([8, 50])))
-            challenge.addTask(Task(GeoFeature([8, 50], {"invalid": object()})))
+            task = Task(GeoFeature([8, 50]))
+            challenge.addTask(task)
+            # addTask already validates serialization. A later mutation must
+            # still fail atomically instead of damaging the previous output.
+            task.mainFeature.properties["invalid"] = object()
             with self.assertRaises(TypeError):
                 challenge.saveToFile(filename)
             self.assertEqual(filename.read_text(encoding="utf-8"), "previous output")

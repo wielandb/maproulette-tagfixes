@@ -340,36 +340,90 @@ class Task:
                 "cooperativeWork": self.cooperativeWork.to_dict()
             }
 
-@dataclass
+MAX_TASKS = 50_000
+MAX_OUTPUT_BYTES = 99_000_000
+
+
+def serialize_task_record(task):
+    """Encode one complete JSON-sequence record, including its actual newline."""
+    payload = json.dumps(task.to_dict(), ensure_ascii=False).encode("utf-8")
+    return b"\x1e" + payload + os.linesep.encode("ascii")
+
+
 class Challenge:
-    def __init__(self):
+    def __init__(self, max_tasks=None, max_output_bytes=None):
+        for name, value in (("max_tasks", max_tasks), ("max_output_bytes", max_output_bytes)):
+            if value is not None and (isinstance(value, bool) or not isinstance(value, int) or value < 1):
+                raise ValueError(f"{name} must be a positive integer")
+        # Callers can request smaller samples, but cannot bypass the hard limits.
+        self.max_tasks = min(MAX_TASKS, max_tasks) if max_tasks is not None else MAX_TASKS
+        self.max_output_bytes = min(MAX_OUTPUT_BYTES, max_output_bytes) if max_output_bytes is not None else MAX_OUTPUT_BYTES
         self.tasks = []
+        self.output_size_bytes = 0
+        self.limit_reason = None
+
+    @property
+    def limit_reached(self):
+        return (self.limit_reason is not None or len(self.tasks) >= self.max_tasks
+                or self.output_size_bytes >= self.max_output_bytes)
+
+    def _reach_limit(self, reason):
+        if self.limit_reason is None:
+            self.limit_reason = reason
+            print(f"[main] Challenge limit reached: {reason}; stopping task generation")
 
     def addTask(self, task):
+        if self.limit_reached:
+            return False
+        record_size = len(serialize_task_record(task))
+        if self.output_size_bytes + record_size > self.max_output_bytes:
+            self._reach_limit(f"next task would exceed {self.max_output_bytes} bytes")
+            return False
         self.tasks.append(task)
+        self.output_size_bytes += record_size
+        if len(self.tasks) >= self.max_tasks:
+            self._reach_limit(f"{self.max_tasks} tasks")
+        elif self.output_size_bytes >= self.max_output_bytes:
+            self._reach_limit(f"{self.max_output_bytes} bytes")
+        return True
 
     def saveToFile(self, filename):
-        # A failed serialization must not leave a truncated challenge behind.
+        # Recheck the live tasks in case a caller changed them after addTask().
+        # A serialization or filesystem failure must preserve the previous file.
         temporary_name = None
+        kept = []
+        output_size = 0
+        reason = None
         try:
             with tempfile.NamedTemporaryFile(
-                mode='w', encoding="UTF-8", dir=os.path.dirname(os.path.abspath(filename)),
-                delete=False,
+                mode='wb', dir=os.path.dirname(os.path.abspath(filename)), delete=False,
             ) as f:
                 temporary_name = f.name
                 for task in self.tasks:
-                    f.write('\x1E')
-                    json.dump(task.to_dict(), f, ensure_ascii=False)
-                    f.write('\n')
+                    if len(kept) >= self.max_tasks:
+                        reason = f"{self.max_tasks} tasks"
+                        break
+                    record = serialize_task_record(task)
+                    if output_size + len(record) > self.max_output_bytes:
+                        reason = f"next task would exceed {self.max_output_bytes} bytes"
+                        break
+                    f.write(record)
+                    kept.append(task)
+                    output_size += len(record)
             os.replace(temporary_name, filename)
         finally:
             if temporary_name and os.path.exists(temporary_name):
                 os.remove(temporary_name)
-    
+        self.tasks = kept
+        self.output_size_bytes = output_size
+        if reason is not None:
+            self._reach_limit(reason)
+
     def cap(self):
-        # Makes sure that the number of tasks is no more than 50000 (drops everything beyond that)
-        if len(self.tasks) > 50000:
-            self.tasks = self.tasks[:50000]
+        # Retain the legacy count-cap API. The writer also enforces byte limits.
+        if len(self.tasks) > self.max_tasks:
+            self.tasks = self.tasks[:self.max_tasks]
+            self._reach_limit(f"{self.max_tasks} tasks")
 
 class _OverpassResponseError(ValueError):
     def __init__(self, message, retryable=True, http_status=None):

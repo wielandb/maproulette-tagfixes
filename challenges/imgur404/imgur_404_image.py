@@ -234,6 +234,8 @@ def main(*, availability_cache=None):
     random.shuffle(elements)
 
     for element in tqdm(elements):
+        if challenge.limit_reached:
+            break
         print("Checking element: ", element["type"], "/", element["id"])
         try:
             geom = mrcb.getElementCenterPoint(element)
@@ -247,6 +249,9 @@ def main(*, availability_cache=None):
         current_loaded = False
         tagChanges = {}
         offendingKeyValues = {}
+        element_edits = []
+        direct_links = 0
+        missing_link_count = 0
         # Check all tags for imgur URLs
         for tag_key, tag_value in element["tags"].items():
             if isinstance(tag_value, str) and "i.imgur.com" in tag_value:
@@ -256,14 +261,14 @@ def main(*, availability_cache=None):
                         "object": f"{element['type']}/{element['id']}", "key": tag_key,
                     })
                     continue
-                statistics["direct_links"] += len(imgur_links)
+                direct_links += len(imgur_links)
                 try:
                     missing_links = [check_imgur_404(link, availability_cache) for link in imgur_links]
                 except ValueError:
                     statistics["unclear_checks"] += 1
                     print("Imgur run incomplete: " + json.dumps(statistics, ensure_ascii=True))
                     raise
-                statistics["missing_links"] += sum(missing_links)
+                missing_link_count += sum(missing_links)
                 # Removing a whole tag must not discard another valid link.
                 if imgur_links and all(missing_links):
                     # Extract scans can be resumed months later. Never generate
@@ -285,16 +290,15 @@ def main(*, availability_cache=None):
                     # Find who set this tag
                     username, version = find_tag_setter(element["type"], element["id"], tag_key, tag_value)
                     if username:
-                        if username not in user_edits:
-                            user_edits[username] = []
-                        # Store the relevant edit with all relevant info
-                        user_edits[username].append({
+                        # Publish attribution only after this object's task
+                        # fits within the challenge's count and byte limits.
+                        element_edits.append((username, {
                             'type': element["type"],
                             'id': element["id"],
                             'version': version,
                             'key': tag_key,
                             'value': tag_value
-                        })
+                        }))
                     else:
                         print(f"Could not find who set the tag {tag_key} for {element['type']}/{element['id']}")
         
@@ -319,12 +323,20 @@ def main(*, availability_cache=None):
                 additionalFeatures=[],
                 cooperativeWork=cooperativeWork
             )
-            challenge.addTask(t)
+            if not challenge.addTask(t):
+                break
             statistics["tasks"] += 1
+            for username, edit in element_edits:
+                user_edits.setdefault(username, []).append(edit)
+        statistics["direct_links"] += direct_links
+        statistics["missing_links"] += missing_link_count
+        if challenge.limit_reached:
+            break
 
     # Also replace an old challenge when this run finds no broken links.
-    # Do this only after every check succeeds, so an outage cannot publish a
-    # partial result or destroy the previous reports.
+    # Publish only after all performed checks succeed. Reaching an intentional
+    # output limit is a successful run; a service outage still preserves the
+    # previous challenge and reports.
     challenge.saveToFile(SCRIPT_DIR / "imgur404.json")
     reports_directory = SCRIPT_DIR / "user_reports"
     reports_directory.mkdir(exist_ok=True)
@@ -336,6 +348,9 @@ def main(*, availability_cache=None):
     create_user_reports(user_edits)
     statistics["resolved_image_ids"] = len(availability_cache)
     statistics["missing_image_ids"] = sum(availability_cache.values())
+    statistics["limit_reached"] = challenge.limit_reached
+    statistics["limit_reason"] = challenge.limit_reason
+    statistics["output_size_bytes"] = challenge.output_size_bytes
     print("Imgur run complete: " + json.dumps(statistics, ensure_ascii=True))
     return statistics
 
