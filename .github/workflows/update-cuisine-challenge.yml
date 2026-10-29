@@ -1,0 +1,64 @@
+name: Update Cuisine Challenge Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      bbox:
+        description: Optional SOUTH WEST NORTH EAST filter inside the Germany PBF
+        required: false
+        type: string
+      max_tasks:
+        description: Maximum tasks (1 to 50000)
+        required: false
+        default: 50000
+        type: number
+
+permissions:
+  contents: write
+
+concurrency:
+  group: challenge-data-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update-cuisine-challenge:
+    if: github.ref_type == 'branch'
+    timeout-minutes: 60
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install generator dependencies
+        run: python -m pip install requests 'osmium>=4.0'
+      - name: Run offline checks
+        run: python -m unittest discover -s tests -p 'test_cuisine_from_name.py' -v
+      - name: Generate challenge data
+        env:
+          SAMPLE_BBOX: ${{ inputs.bbox }}
+          MAX_TASKS: ${{ inputs.max_tasks }}
+        run: |
+          args=(--max-tasks "$MAX_TASKS")
+          if [[ -n "$SAMPLE_BBOX" ]]; then
+            read -r -a coordinates <<< "$SAMPLE_BBOX"
+            args+=(--bbox "${coordinates[@]}")
+          fi
+          python challenges/cuisine_from_name/generate.py "${args[@]}"
+      - uses: actions/upload-artifact@v7
+        with:
+          name: cuisine-from-name-data
+          path: challenges/cuisine_from_name/cuisine_from_name.json
+          if-no-files-found: error
+      - name: Commit changed data
+        env:
+          TARGET_BRANCH: ${{ github.ref_name }}
+        run: |
+          git config --local user.email 'github-actions[bot]@users.noreply.github.com'
+          git config --local user.name 'github-actions[bot]'
+          git add -- challenges/cuisine_from_name/cuisine_from_name.json
+          if ! git diff --cached --quiet; then
+            git commit -m 'Update cuisine challenge data'
+            git pull --rebase origin "$TARGET_BRANCH"
+            git push origin "HEAD:$TARGET_BRANCH"
+          fi

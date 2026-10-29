@@ -21,6 +21,14 @@ generators and uses `.venv` when available. It returns a nonzero exit code if an
 generator fails. Generation needs internet access; the Imgur scan downloads
 Geofabrik extracts and can take a long time.
 
+The [cuisine-from-name generator](challenges/cuisine_from_name/README.md) suggests
+missing `kebab` and `pizza` cuisine values for restaurants and fast-food places
+in the Geofabrik Germany PBF while retaining existing values. Tags and geometry
+are read locally, with no Overpass or OSM API lookups. It supports `--pbf`,
+`--cache-dir`, local `--bbox`, `--output` and `--max-tasks` for samples. Its **Update Cuisine Challenge Data** GitHub
+Actions workflow is manual only and commits generated JSON without publishing
+to MapRoulette.
+
 All challenge generators stop at 50,000 tasks or before adding a task that would
 exceed 99 MB (99,000,000 bytes), whichever comes first. Exactly reaching a limit
 is allowed. The byte limit includes the complete UTF-8 JSON sequence, geometry,
@@ -183,8 +191,8 @@ To enable the existing AI helper locally:
    Its quota accounting does not itself establish whether OpenAI API usage is
    free. The configured model order is `gpt-5-mini`, then `gpt-5.1`.
 
-There is currently no parking GitHub Actions workflow. The existing workflow
-only updates the stopsign challenge and does not provision an OpenAI key.
+There is currently no parking GitHub Actions workflow. The stopsign and manual cuisine
+workflows do not provision an OpenAI key.
 Repository files cannot show whether Actions secrets have already been configured
 on GitHub. For a future parking workflow, store the key as an Actions secret
 such as `OPENAI_API_KEY`, then explicitly pass it to the job. The current helper

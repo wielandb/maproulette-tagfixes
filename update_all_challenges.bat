@@ -10,6 +10,7 @@ call :generate "challenges\parking_converter\parking_converter.py"
 call :generate "challenges\amenity_nursing_home\amenity_nursing_home.py"
 call :generate "challenges\nursing_home_for\nursing_home_for.py"
 call :generate "challenges\add_objects_to_stop_area\generate.py"
+call :generate "challenges\cuisine_from_name\generate.py"
 call :generate "challenges\imgur404\imgur_404_image.py"
 exit /b %CHALLENGE_FAILED%
 
