@@ -12,8 +12,10 @@ from urllib.parse import urlsplit
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 from shared import challenge_builder as mrcb
+from shared import geofabrik
 
 OUTPUT_FILE = SCRIPT_DIR / "social_workshop.json"
+DEFAULT_CACHE = SCRIPT_DIR.parents[1] / ".cache" / "geofabrik"
 EVIDENCE_FIELDS = ("name", "description", "description:de")
 COMPETING_KEYS = ("shop", "craft", "office", "healthcare", "leisure")
 LIFECYCLE_PREFIXES = ("disused:", "abandoned:", "demolished:", "razed:", "removed:", "destroyed:", "construction:", "proposed:")
@@ -101,17 +103,6 @@ def validate_bbox(bbox):
     return south, west, north, east
 
 
-def build_query(bbox=None):
-    bbox = validate_bbox(bbox)
-    selection = "area(id:3600051477)->.searchArea;\n" if bbox is None else ""
-    area = "area.searchArea" if bbox is None else ",".join(str(value) for value in bbox)
-    # Broad selection, followed by the same authoritative classifier for all fields.
-    selectors = "\n".join(
-        f'nwr["{key}"~"behin|wfbm",i]({area});' for key in EVIDENCE_FIELDS
-    )
-    return f"[out:json][timeout:250];\n{selection}(\n{selectors}\n);\nout tags center;"
-
-
 def markdown_text(value):
     text = html.escape(str(value), quote=False).replace("\r", " ").replace("\n", " ")
     for char in ("\\", "`", "*", "_", "[", "]", "|", "~"):
@@ -170,25 +161,45 @@ def build_task(element):
     links = source_links(tags)
     if links:
         instruction += "\n\n**Vorhandene Quellenlinks:** " + links
-    feature = mrcb.GeoFeature.withId(osm_type, osm_id, geometry, {"task_instruction": instruction})
+    properties = {"task_instruction": instruction}
+    for key in ("pbf_timestamp", "pbf_source"):
+        if element.get(key):
+            properties[key] = element[key]
+    if element.get("pbf_source"):
+        instruction += "\n\n**PBF-Quelle:** " + markdown_text(element["pbf_source"])
+        instruction += "\n\n**PBF-Datenstand:** " + markdown_text(element.get("pbf_timestamp") or "nicht im Header angegeben")
+        properties["task_instruction"] = instruction
+    feature = mrcb.GeoFeature.withId(osm_type, osm_id, geometry, properties)
     return mrcb.Task(feature, additionalFeatures=[], cooperativeWork=mrcb.TagFix(osm_type, osm_id, changes))
 
 
-def main(output_file=None, bbox=None, max_tasks=None):
-    query = build_query(bbox)
+def main(output_file=None, bbox=None, max_tasks=None, pbf_file=None, cache_dir=None):
+    bbox = validate_bbox(bbox)
     challenge = mrcb.Challenge(max_tasks=max_tasks)
-    elements = mrcb.Overpass().getElementsFromQuery(query)
+    pbf_file = (Path(pbf_file).resolve() if pbf_file is not None else
+                geofabrik.download_germany(Path(cache_dir).resolve() if cache_dir is not None else DEFAULT_CACHE))
+    elements = iter(geofabrik.iter_pbf_elements(
+        pbf_file, tag_keys=EVIDENCE_FIELDS,
+        predicate=lambda tags: bool(propose_changes(tags)), bbox=bbox,
+    ))
     seen = set()
-    for element in elements:
-        if challenge.limit_reached:
-            break
-        identity = element.get("type"), element.get("id")
-        if identity in seen:
-            continue
-        seen.add(identity)
-        task = build_task(element)
-        if task is not None and not challenge.addTask(task):
-            break
+    try:
+        while not challenge.limit_reached:
+            try:
+                element = next(elements)
+            except StopIteration:
+                break
+            identity = element.get("type"), element.get("id")
+            if identity in seen:
+                continue
+            seen.add(identity)
+            task = build_task(element)
+            if task is not None and not challenge.addTask(task):
+                break
+    finally:
+        close = getattr(elements, "close", None)
+        if close is not None:
+            close()
     output_file = Path(output_file).resolve() if output_file is not None else OUTPUT_FILE
     output_file.parent.mkdir(parents=True, exist_ok=True)
     challenge.saveToFile(output_file)
@@ -196,15 +207,19 @@ def main(output_file=None, bbox=None, max_tasks=None):
     return challenge
 
 
-def cli():
-    parser = argparse.ArgumentParser(description="Generate German TagFix tasks for explicitly identified sheltered workshops.")
-    parser.add_argument("--bbox", type=float, nargs=4, metavar=("SOUTH", "WEST", "NORTH", "EAST"))
+def cli(argv=None):
+    parser = argparse.ArgumentParser(description="Generate German TagFix tasks for sheltered workshops from a local Geofabrik PBF.")
+    parser.add_argument("--bbox", type=float, nargs=4, metavar=("SOUTH", "WEST", "NORTH", "EAST"),
+                        help="Filter the PBF by each object's display centre.")
+    parser.add_argument("--pbf", type=Path, help="Read this existing PBF instead of downloading Germany.")
+    parser.add_argument("--cache-dir", type=Path, help="Directory for the Germany download cache (maximum age: 24 hours).")
     parser.add_argument("--output", type=Path, help="Output file; defaults to social_workshop.json beside this script.")
     parser.add_argument("--max-tasks", type=int, help="Smaller task limit, up to the shared maximum of 50,000.")
-    args = parser.parse_args()
+    args = parser.parse_args(argv)
     try:
-        main(output_file=args.output, bbox=args.bbox, max_tasks=args.max_tasks)
-    except ValueError as exc:
+        main(output_file=args.output, bbox=args.bbox, max_tasks=args.max_tasks,
+             pbf_file=args.pbf, cache_dir=args.cache_dir)
+    except (ValueError, OSError, RuntimeError) as exc:
         parser.error(str(exc))
 
 

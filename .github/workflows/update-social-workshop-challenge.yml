@@ -23,8 +23,8 @@ jobs:
       - name: Install dependencies
         run: python -m pip install -r requirements.txt
       - name: Run offline tests
-        run: python -m unittest tests.test_social_workshop -v
-      - name: Generate Germany tasks
+        run: python -m unittest tests.test_geofabrik tests.test_social_workshop -v
+      - name: Generate tasks from Germany PBF
         run: python challenges/social_workshop/generate.py
       - name: Commit challenge data
         env:
