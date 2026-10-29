@@ -198,3 +198,14 @@ the [official OpenAI documentation](https://developers.openai.com/api/docs/guide
 announces retirement of prompt objects on November 30, 2026. Move the prompt
 content into versioned application code before that retirement when maintaining
 this integration.
+
+## Social workshop TagFix challenge
+
+The [social workshop generator](challenges/social_workshop/README.md) finds
+explicit sheltered-workshop names and descriptions in the Geofabrik Germany PBF, proposes
+missing social-facility tags, and preserves existing target groups. It accepts
+`--pbf`, `--cache-dir`, `--bbox`, `--output` and `--max-tasks` for local samples. The shared PBF download cache is reused for at most 24 hours. German task instructions
+show the text evidence and before/after tags. The generated
+`challenges/social_workshop/social_workshop.json` is the versioned task source;
+the prepared GitHub Actions workflow can regenerate it manually without a
+schedule.
