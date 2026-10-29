@@ -81,29 +81,41 @@ immer. Nach Erreichen einer Grenze wird der Reader geschlossen und es werden
 keine weiteren Aufgaben bearbeitet. Fehler beim Download oder PBF-Lesen lassen
 die vorherige Ausgabe bestehen; erst der erfolgreiche Export ersetzt sie atomisch.
 
-## Echte PBF-CLI-Probe vom 29. Oktober 2026
+## Deutschlandweiter PBF-Lauf vom 29. Oktober 2026
 
-Die eingecheckte JSON enthält **zwei echte Aufgaben** aus einem erfolgreich
-beendeten CLI-Lauf (**Exitcode 0**) mit dem vollständigen
+Die eingecheckte JSON enthält **146 Aufgaben** aus dem vollständig durchgelaufenen
+normalen Deutschland-Lauf (**Exitcode 0**, **240.607 Bytes**). Verwendet wurde der
 [Geofabrik-Deutschland-Extrakt](https://download.geofabrik.de/europe/germany-latest.osm.pbf)
 mit **4.871.369.043 Bytes** und dem PBF-Header-Datenstand
-**2026-10-28T21:21:02Z**. Die Aufgaben stammen aus der lokal gefilterten Dresdner
-Bounding Box **50.95 13.60 51.12 13.90**, bei **maximal 20 Aufgaben**.
-Die Datei ist eine Gebietsstichprobe aus dem Deutschland-PBF und kein
-vollständiger Deutschland-Aufgabenexport.
+**2026-10-28T21:21:02Z**. Der Aufruf hatte **keine Bounding Box und kein zusätzliches
+Tasklimit**. Die gemeinsamen Obergrenzen wurden nicht erreicht; der Lauf endete
+nach Verarbeitung aller passenden Objekte des Extrakts.
 
-Reproduzierbarer Aufruf mit demselben lokal bereitgestellten Extrakt:
+Aufruf mit dem gemeinsam lokal zwischengespeicherten Deutschland-PBF:
 
 ```powershell
-.\.venv\Scripts\python.exe challenges/social_workshop/generate.py --pbf .venv/geofabrik-cache/germany-latest.osm.pbf --bbox 50.95 13.60 51.12 13.90 --max-tasks 20 --output .venv/live-challenges/workshop_pbf.json
+.\.venv\Scripts\python.exe challenges/social_workshop/generate.py --cache-dir .venv/geofabrik-cache --output .venv/live-challenges/workshop_germany.json
 ```
 
+| OSM-Darstellung | Aufgaben |
+| --- | ---: |
+| Node | 30 |
+| Way | 108 |
+| Relation | 8 |
+
 Die lokale Referenzauflösung verarbeitete 116 Way-/Relations-Kandidaten,
-12 zusätzliche Way-Referenzen und 1.972 benötigte Node-Koordinaten.
-Die beiden Aufgaben betreffen `way/580124359` (Einrichtungstyp und Zielgruppe
-ergänzen) sowie `way/1088311816` (nur die fehlende Zielgruppe ergänzen).
-Quelle, Datenstand, Geometrie und TagFix-Struktur wurden für beide geprüft.
-Dieser PBF-Export ersetzt die frühere API-revalidierte Stichprobe.
+12 zusätzliche Way-Referenzen und 1.968 benötigte Node-Koordinaten. Es wurden
+keine Kandidaten wegen unvollständiger Geometrie ausgelassen.
+Die Vorschläge ergänzen beziehungsweise korrigieren 102-mal `amenity`,
+109-mal `social_facility` und 140-mal `social_facility:for`.
+
+Alle 146 ausgegebenen Records wurden auf JSON-Sequenz-/TagFix-Struktur,
+eindeutige und übereinstimmende Objekt-IDs, endliche gültige Koordinaten,
+PBF-Quelle und Datenstand geprüft. Jede vorgeschlagene Tagänderung stimmt mit
+der Vorher-Nachher-Tabelle überein und verändert tatsächlich den dort gezeigten
+vorherigen Wert. Zielgruppen werden ausschließlich bei fehlendem Tag ergänzt;
+Löschoperationen enthält der Export nicht. Dieser deutschlandweite Export ersetzt
+die frühere Dresdner Gebietsstichprobe.
 
 ## Tests und GitHub Actions
 
