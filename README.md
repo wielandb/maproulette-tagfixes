@@ -73,6 +73,14 @@ An incomplete border way is repaired from the official OSM API only when its
 endpoints still match; unusable borders fail explicitly instead of producing an
 empty challenge. Unsupported area syntax falls back to another server.
 Overpass responses with a database timestamp older than seven days are rejected.
+A server that returns such stale data is excluded for the rest of that client
+run, including when the stale response comes from a boundary or candidate lookup.
+Subsequent retries and batches use only the remaining servers, still with at most
+six attempts per top-level query and the same backoff. If every server is stale,
+the client fails immediately instead of repeatedly querying unusable mirrors.
+A new client/run tries the configured servers again, allowing recovered mirrors
+to rejoin. Exhausted retries still fail the generator and preserve its previous
+output; stale or partial data is never published as a successful update.
 
 To use your own ordered list of Overpass servers, set `OVERPASS_URLS` before
 running a generator:

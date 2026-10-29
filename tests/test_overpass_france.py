@@ -197,21 +197,46 @@ class FranceOverpassTests(unittest.TestCase):
         self.assertEqual(self.sent_queries(), [query, query])
         self.assertEqual(client.overpass_url, OTHER_URL)
 
-    def test_stale_boundary_is_not_cached_or_used_for_country_selection(self):
+    def test_stale_boundary_disables_the_mirror_before_later_query_preparation(self):
         self.post.side_effect = [
             response([boundary()], age=timedelta(days=8)), response(),
-            response(status=503), response([boundary()]), response(CANDIDATES), response(),
+            response(status=503), response(),
         ]
         client = self.client()
 
         self.assertEqual(client.getElementsFromQuery(AREA_QUERY), ELEMENTS)
-
-        self.assertEqual(self.post.call_count, 2)
-        self.assertEqual(self.post.call_args_list[1].args[0], OTHER_URL)
-        self.assertEqual(self.sent_queries()[1], AREA_QUERY)
-        # Return to France after the other server fails: the country boundary
-        # must be fetched again, rather than using the earlier stale response.
         self.assertEqual(client.getElementsFromQuery(AREA_QUERY), ELEMENTS)
+
+        self.assertEqual([request.args[0] for request in self.post.call_args_list],
+                         [FRANCE_URL, OTHER_URL, OTHER_URL, OTHER_URL])
+        self.assertEqual(sum('relation(51477);out geom;' in query for query in self.sent_queries()), 1)
+        self.assertEqual(self.sent_queries()[1:], [AREA_QUERY] * 3)
+        self.assertNotIn(FRANCE_URL, client._area_resolvers)
+
+    def test_stale_candidate_selection_also_disables_the_mirror(self):
+        self.post.side_effect = [
+            response([boundary()]), response(CANDIDATES, age=timedelta(days=8)), response(),
+            response(status=503), response(),
+        ]
+        client = self.client()
+
+        self.assertEqual(client.getElementsFromQuery(AREA_QUERY), ELEMENTS)
+        self.assertEqual(client.getElementsFromQuery(AREA_QUERY), ELEMENTS)
+
+        self.assertEqual([request.args[0] for request in self.post.call_args_list],
+                         [FRANCE_URL, FRANCE_URL, OTHER_URL, OTHER_URL, OTHER_URL])
+        self.assertEqual(self.sent_queries()[2:], [AREA_QUERY] * 3)
+        self.assertNotIn(FRANCE_URL, client._area_resolvers)
+
+    def test_new_client_fetches_boundary_again_after_stale_response(self):
+        self.post.side_effect = [
+            response([boundary()], age=timedelta(days=8)), response(),
+            response([boundary()]), response(CANDIDATES), response(),
+        ]
+
+        self.assertEqual(self.client().getElementsFromQuery(AREA_QUERY), ELEMENTS)
+        self.assertEqual(self.client().getElementsFromQuery(AREA_QUERY), ELEMENTS)
+
         queries = self.sent_queries()
         self.assertEqual(sum('relation(51477);out geom;' in query for query in queries), 2)
         self.assertIn('node(id:123)', queries[-1])
