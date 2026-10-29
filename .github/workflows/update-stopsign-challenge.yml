@@ -1,6 +1,11 @@
 name: Update Stopsign Challenge Data
 
 on:
+  push:
+    branches:
+      - fix/overpass-stale-mirror-retries
+    paths:
+      - .github/workflows/update-stopsign-challenge.yml
   schedule:
     - cron: '0 0 * * 0'  # Runs at 00:00 on Sunday
   workflow_dispatch:  # Allows manual trigger
