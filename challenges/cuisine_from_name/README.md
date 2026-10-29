@@ -85,33 +85,36 @@ may require extra passes through the file. A download or PBF-read failure
 preserves previous output. A successful zero-result run replaces it with an
 empty file. No tags or geometry are refreshed from another remote data source.
 
-## Included real PBF test run
+## Included complete Germany run
 
-The checked-in `cuisine_from_name.json` contains **20 real tasks** from a
-successful CLI run on **2026-10-29**, with **exit status 0**. The source was the
-complete Geofabrik `germany-latest.osm.pbf`, downloaded that day (**4,871,369,043
-bytes**), with PBF header timestamp **2026-10-28T21:21:02Z**. The run used the
-shared download cache, local bounding box **50.95 13.60 51.12 13.90** around
-Dresden and Freital, and `--max-tasks 20`.
+The checked-in `cuisine_from_name.json` contains **6,340 real tasks** from a
+successful Germany-wide CLI run on **2026-10-29**, with **exit status 0**. The
+source was the complete Geofabrik `germany-latest.osm.pbf`, downloaded that day
+(**4,871,369,043 bytes**), with PBF header timestamp **2026-10-28T21:21:02Z**.
+There was **no `--bbox` and no `--max-tasks`**. The generator reached the natural
+end of the extract; neither the shared 50,000-task limit nor the 99,000,000-byte
+limit was reached.
 
-Equivalent command from the repository root, with the freshly populated shared
-cache:
+Command from the repository root, using the freshly populated shared cache:
 
 ```powershell
-.\.venv\Scripts\python.exe challenges/cuisine_from_name/generate.py --cache-dir .venv/geofabrik-cache --bbox 50.95 13.60 51.12 13.90 --max-tasks 20 --output .venv/live-challenges/cuisine_pbf.json
+.\.venv\Scripts\python.exe challenges/cuisine_from_name/generate.py --cache-dir .venv/geofabrik-cache --output .venv/live-challenges/cuisine_germany.json
 ```
 
-The log reports `Challenge limit reached: 20 tasks` followed by `Saved 20 cuisine
-tasks`; the wrapper recorded exit status `0`. The successful output was copied
-to the versioned default output. This replaces the earlier API-revalidated
-sample: tags, candidates and coordinates in the current file all come solely
-from the PBF. No Overpass or OSM API calls or mocked results were used.
+The output contains **5,619 node tasks**, **721 way tasks** and **0 relation
+tasks**, totalling **10,718,270 bytes** in the generated Windows export. Local
+reference resolution read 4,844 required node coordinates. The log ends with
+`Saved 6340 cuisine tasks`; the wrapper recorded exit status `0`. The complete
+successful output replaces the earlier 20-task sample in the versioned default
+output. All tags, candidates and coordinates come solely from this PBF; no
+Overpass or OSM API calls or mocked results were used.
 
-All 20 name-based suggestions were checked for additive cuisine changes and
-retention of existing values. These capped first results are nodes; local
-way/relation geometry is covered by real miniature PBF integration tests. The
-sample is not a complete Germany export or a full scan of all eligible objects.
-Every task shows its source filename and PBF timestamp for mapper review.
+Every exported record passed checks for the GeoJSON/TagFix schema, unique typed
+OSM IDs, finite valid coordinates, correct PBF timestamp, retained existing
+cuisine values and absence of no-op edits. No relation happened to produce a
+task in this source snapshot; relation handling remains covered by miniature
+PBF integration tests. Every task shows its source filename and timestamp, and
+each name-based suggestion still requires mapper review against the real place.
 
 ## Manual GitHub Actions update
 
