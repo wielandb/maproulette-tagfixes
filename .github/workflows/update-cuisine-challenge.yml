@@ -4,7 +4,7 @@ on:
   workflow_dispatch:
     inputs:
       bbox:
-        description: Optional SOUTH WEST NORTH EAST bounding box (replaces Germany)
+        description: Optional SOUTH WEST NORTH EAST filter inside the Germany PBF
         required: false
         type: string
       max_tasks:
@@ -31,7 +31,7 @@ jobs:
         with:
           python-version: '3.12'
       - name: Install generator dependencies
-        run: python -m pip install requests 'shapely>=2'
+        run: python -m pip install requests 'osmium>=4.0'
       - name: Run offline checks
         run: python -m unittest discover -s tests -p 'test_cuisine_from_name.py' -v
       - name: Generate challenge data

@@ -37,56 +37,88 @@ current OSM object, cuisine documentation, and existing website/menu links.
 The generator does not fetch those business websites. Accept only after review;
 correct a proposal in an editor, reject it, or skip when unsure.
 
-## Run locally
+## Run locally from Geofabrik PBF
 
-Use the repository's virtual environment and dependencies, or install `requests`
-and `shapely>=2` for this standalone generator. Shapely is required for the
-default French Overpass server's exact country-boundary filtering.
-Run from the repository root:
+Install the repository dependencies, or `requests` and `osmium>=4.0` for this
+generator. Run from the repository root:
 
 ```powershell
 .\.venv\Scripts\python.exe challenges/cuisine_from_name/generate.py
 ```
 
-The default versionable output is `challenges/cuisine_from_name/cuisine_from_name.json`,
-a UTF-8 JSON sequence with one task per record. Paths are resolved independently
-of the shell's working directory; a relative `--output` is relative to the caller.
-No empty placeholder output is committed before a real run.
+The default input is the [Geofabrik Germany extract](https://download.geofabrik.de/europe/germany.html).
+The shared helper downloads `germany-latest.osm.pbf` into repository
+`.cache/geofabrik` and reuses its download cache. Cache files are ignored by Git.
+This is a large download. All candidate tags and node, way and relation display
+centres are read locally from that PBF; the generator makes no Overpass or OSM
+editing API requests. Website links appear only as manual review aids and are
+not fetched by the generator. The scope follows the extract, including its
+border objects, rather than a separate exact country polygon.
+
+Use an existing extract or a different shared download cache:
+
+```powershell
+.\.venv\Scripts\python.exe challenges/cuisine_from_name/generate.py --pbf C:\osm\germany-latest.osm.pbf
+.\.venv\Scripts\python.exe challenges/cuisine_from_name/generate.py --cache-dir .venv/geofabrik-cache
+```
+
+`--pbf` skips downloading; the caller is responsible for that file's provenance,
+region and freshness. `--bbox SOUTH WEST NORTH EAST` filters object display
+centres inside the PBF locally and can be combined with `--pbf`. It does not
+make a regional download or reduce the source extract before scanning.
 
 For a smaller real sample:
 
 ```powershell
-.\.venv\Scripts\python.exe challenges/cuisine_from_name/generate.py --bbox 51.025 13.70 51.09 13.79 --max-tasks 20 --output .venv/live-challenges/cuisine_dresden.json
+.\.venv\Scripts\python.exe challenges/cuisine_from_name/generate.py --pbf C:\osm\germany-latest.osm.pbf --bbox 50.95 13.60 51.12 13.90 --max-tasks 20 --output .venv/live-challenges/cuisine_dresden.json
 ```
 
-`--bbox SOUTH WEST NORTH EAST` selects that rectangle instead of Germany.
+The default versionable output is `challenges/cuisine_from_name/cuisine_from_name.json`,
+a UTF-8 JSON sequence with one task per record. Default paths are relative to
+the repository/script; relative explicit `--pbf`, `--cache-dir` and `--output`
+paths are relative to the caller. Output directories are created as needed.
+
 `--max-tasks` must be positive and can only lower the shared 50,000-task limit.
-The shared 99,000,000-byte limit also applies; generation stops before processing
-another candidate once a limit is reached. Output directories are created as
-needed. Query failures preserve previous output; a successful zero-result run
-replaces it with an empty file. The shared Overpass failover and `OVERPASS_URLS`
-configuration apply.
+The shared 99,000,000-byte limit also applies. The PBF iterator is closed at a
+limit without advancing another candidate; loading initial geometry context
+may require extra passes through the file. A download or PBF-read failure
+preserves previous output. A successful zero-result run replaces it with an
+empty file. No tags or geometry are refreshed from another remote data source.
 
-## Included initial data sample
+## Included real PBF test run
 
-The checked-in `cuisine_from_name.json` is a real **20-task sample from Dresden
-and its surroundings**, generated on **2026-10-29** for bounding box
-`50.95 13.60 51.12 13.90` and capped at 20 tasks. It is not a complete Germany
-export. Candidate discovery used an outdated French Overpass snapshot because
-current Overpass endpoints were unavailable; every included object's current
-tags and coordinates were fetched again from the live OSM editing API before
-task generation. No OSM changes were uploaded.
+The checked-in `cuisine_from_name.json` contains **20 real tasks** from a
+successful CLI run on **2026-10-29**, with **exit status 0**. The source was the
+complete Geofabrik `germany-latest.osm.pbf`, downloaded that day (**4,871,369,043
+bytes**), with PBF header timestamp **2026-10-28T21:21:02Z**. The run used the
+shared download cache, local bounding box **50.95 13.60 51.12 13.90** around
+Dresden and Freital, and `--max-tasks 20`.
 
-A normal run without `--bbox` or a manual workflow run with empty bbox input
-replaces this sample with a new Germany export. API revalidation for this initial
-sample was a separate preparation step; the generator itself uses the shared
-Overpass client's freshness checks and does not accept outdated results.
+Equivalent command from the repository root, with the freshly populated shared
+cache:
+
+```powershell
+.\.venv\Scripts\python.exe challenges/cuisine_from_name/generate.py --cache-dir .venv/geofabrik-cache --bbox 50.95 13.60 51.12 13.90 --max-tasks 20 --output .venv/live-challenges/cuisine_pbf.json
+```
+
+The log reports `Challenge limit reached: 20 tasks` followed by `Saved 20 cuisine
+tasks`; the wrapper recorded exit status `0`. The successful output was copied
+to the versioned default output. This replaces the earlier API-revalidated
+sample: tags, candidates and coordinates in the current file all come solely
+from the PBF. No Overpass or OSM API calls or mocked results were used.
+
+All 20 name-based suggestions were checked for additive cuisine changes and
+retention of existing values. These capped first results are nodes; local
+way/relation geometry is covered by real miniature PBF integration tests. The
+sample is not a complete Germany export or a full scan of all eligible objects.
+Every task shows its source filename and PBF timestamp for mapper review.
 
 ## Manual GitHub Actions update
 
 Run **Update Cuisine Challenge Data** using **Run workflow** on the intended
-branch. It has no schedule. Optional inputs select a bounding box and smaller
-maximum task count. The workflow runs the offline tests, generates the JSON,
+branch. It has no schedule. Optional inputs select a local PBF bounding-box
+filter and a smaller maximum task count. The workflow installs `requests` and
+`osmium>=4.0`, runs offline tests, downloads the Germany PBF, generates the JSON,
 uploads it as a downloadable artifact, and commits only that output when it
 changed. It needs repository `contents: write` permission and no service secrets.
 This does not create or update a MapRoulette challenge.
@@ -99,5 +131,6 @@ This does not create or update a MapRoulette challenge.
 
 Tests cover spelling/compound matches, preservation and idempotence, aliases,
 combined suggestions, lifecycle exclusions, all three OSM types, malformed
-coordinates, query/CLI selection, JSON-sequence output, task/byte limits, and
-preservation of output after download failures. Network calls are mocked.
+coordinates, CLI selection, JSON-sequence output, task/byte limits, and
+preservation of output after download/PBF failures. A real small PBF fixture
+exercises nodes, ways, relations, the predicate and local bbox without network.

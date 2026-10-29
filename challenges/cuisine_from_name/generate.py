@@ -10,9 +10,10 @@ from urllib.parse import quote, urlsplit
 SCRIPT_DIR = Path(__file__).resolve().parent
 sys.path.insert(0, str(SCRIPT_DIR.parents[1]))
 from shared import challenge_builder as mrcb
+from shared.geofabrik import download_germany, iter_pbf_elements
 
 
-COUNTRY_AREA_ID = 3600051477
+DEFAULT_CACHE_DIR = SCRIPT_DIR.parents[1] / ".cache" / "geofabrik"
 DEFAULT_OUTPUT = SCRIPT_DIR / "cuisine_from_name.json"
 NAME_RULES = (
     ("kebab", re.compile(r"döner|doener|doner|kebab|kebap", re.IGNORECASE)),
@@ -85,17 +86,6 @@ def validate_bbox(bbox):
     return tuple(bbox)
 
 
-def build_query(bbox=None):
-    bbox = validate_bbox(bbox)
-    area = f"area(id:{COUNTRY_AREA_ID})->.searchArea;\n" if bbox is None else ""
-    selection = "area.searchArea" if bbox is None else ",".join(str(value) for value in bbox)
-    # Local matching is authoritative for list membership, aliases and conflicts.
-    name_pattern = "|".join(pattern.pattern for _, pattern in NAME_RULES)
-    return (f"[out:json][timeout:250];\n{area}"
-            f'nwr["amenity"~"^(fast_food|restaurant)$"]'
-            f'["name"~"{name_pattern}",i]({selection});\nout tags center;')
-
-
 def inline_code(value):
     value = str(value).replace("\r", " ").replace("\n", " ").replace("|", "\\|")
     longest = max((len(match.group()) for match in re.finditer(r"`+", value)), default=0)
@@ -142,6 +132,10 @@ def build_instruction(element, changes):
         "Quellen zur Prüfung:",
         f"- [Aktuelles OSM-Objekt]({osm_url})",
     ]
+    if element.get("pbf_source"):
+        stamp = element.get("pbf_timestamp") or "im PBF-Header nicht angegeben"
+        lines.append(f"- PBF-Quelle: {inline_code(element['pbf_source'])}; Datenstand: {inline_code(stamp)}. "
+                     "Tags und Kartenposition stammen aus diesem Extrakt und können inzwischen geändert sein.")
     for key, label in (("website:menu", "Speisekarte"), ("website", "Website"),
                        ("contact:website", "Kontakt-Website")):
         if (url := source_link(tags.get(key))):
@@ -177,20 +171,38 @@ def build_task(element):
     return mrcb.Task(feature, cooperativeWork=mrcb.TagFix(element["type"], osm_id, changes))
 
 
-def main(output_file=None, bbox=None, max_tasks=None):
-    query = build_query(bbox)
+def main(output_file=None, bbox=None, max_tasks=None, pbf=None, cache_dir=None):
+    bbox = validate_bbox(bbox)
     challenge = mrcb.Challenge(max_tasks=max_tasks)
-    elements = mrcb.Overpass().getElementsFromQuery(query)
-    for element in elements:
-        if challenge.limit_reached:
-            break
-        try:
-            task = build_task(element)
-        except (KeyError, TypeError, ValueError) as exc:
-            print(f"Skipping {element.get('type')}/{element.get('id')}: {exc}")
-            continue
-        if task is not None and not challenge.addTask(task):
-            break
+    if pbf is None:
+        cache = Path(cache_dir).resolve() if cache_dir is not None else DEFAULT_CACHE_DIR
+        cache.mkdir(parents=True, exist_ok=True)
+        path = download_germany(cache)
+    else:
+        path = Path(pbf).resolve()
+    elements = iter(iter_pbf_elements(
+        path, tag_keys=("amenity",),
+        predicate=lambda tags: propose_changes(tags) is not None, bbox=bbox,
+    ))
+    try:
+        # Check the cap before next(): do not continue scanning the PBF once the
+        # task or byte budget has been reached.
+        while not challenge.limit_reached:
+            try:
+                element = next(elements)
+            except StopIteration:
+                break
+            try:
+                task = build_task(element)
+            except (KeyError, TypeError, ValueError) as exc:
+                print(f"Skipping {element.get('type')}/{element.get('id')}: {exc}")
+                continue
+            if task is not None and not challenge.addTask(task):
+                break
+    finally:
+        close = getattr(elements, "close", None)
+        if close is not None:
+            close()
     destination = Path(output_file).resolve() if output_file is not None else DEFAULT_OUTPUT
     destination.parent.mkdir(parents=True, exist_ok=True)
     challenge.saveToFile(destination)
@@ -200,13 +212,16 @@ def main(output_file=None, bbox=None, max_tasks=None):
 
 def cli(argv=None):
     parser = argparse.ArgumentParser(description=__doc__)
+    parser.add_argument("--pbf", type=Path, help="Use an existing Geofabrik PBF instead of downloading Germany.")
+    parser.add_argument("--cache-dir", type=Path, help="Download cache; defaults to repository .cache/geofabrik.")
     parser.add_argument("--bbox", type=float, nargs=4, metavar=("SOUTH", "WEST", "NORTH", "EAST"),
-                        help="Select this bounding box instead of Germany.")
+                        help="Filter PBF object centres locally; can be combined with --pbf.")
     parser.add_argument("--output", type=Path, help="Write the JSON sequence to this file.")
     parser.add_argument("--max-tasks", type=int, help="Generate a smaller sample (maximum 50,000).")
     args = parser.parse_args(argv)
     try:
-        main(output_file=args.output, bbox=args.bbox, max_tasks=args.max_tasks)
+        main(output_file=args.output, bbox=args.bbox, max_tasks=args.max_tasks,
+             pbf=args.pbf, cache_dir=args.cache_dir)
     except ValueError as exc:
         parser.error(str(exc))
 

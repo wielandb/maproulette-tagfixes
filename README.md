@@ -23,8 +23,9 @@ Geofabrik extracts and can take a long time.
 
 The [cuisine-from-name generator](challenges/cuisine_from_name/README.md) suggests
 missing `kebab` and `pizza` cuisine values for restaurants and fast-food places
-in Germany while retaining existing values. It supports `--bbox`, `--output`
-and `--max-tasks` for local samples. Its **Update Cuisine Challenge Data** GitHub
+in the Geofabrik Germany PBF while retaining existing values. Tags and geometry
+are read locally, with no Overpass or OSM API lookups. It supports `--pbf`,
+`--cache-dir`, local `--bbox`, `--output` and `--max-tasks` for samples. Its **Update Cuisine Challenge Data** GitHub
 Actions workflow is manual only and commits generated JSON without publishing
 to MapRoulette.
 
