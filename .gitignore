@@ -19,4 +19,4 @@ challenges/parking_converter/creds.json
 challenges/parking_converter/comparison_preview.html
 shared/free_tokens.py
 /.codex-remote-attachments
-/challenges/website_redirects/.cache/
+/.cache/

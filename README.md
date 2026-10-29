@@ -95,11 +95,14 @@ Run the offline regression tests with:
 The [website redirect generator](challenges/website_redirects/README.md) creates
 German TagFix tasks for permanent 301/308 redirects of `website` and
 `contact:website`. It includes HTTPS, www, slash and domain changes, with human
-review of the destination's identity. By default it downloads and caches a
-Germany PBF for up to 24 hours; `--pbf`, `--bbox`, `--cache-dir`, `--output` and
-`--max-tasks` support local extracts and smaller live runs. Website checks are
-deduplicated in a separate SQLite cache. Current tags and map positions are
-loaded only for confirmed redirect candidates. A manual GitHub Actions workflow
+review of the destination's identity and current OSM tags. Candidates and
+node/way/relation centres come entirely from a Germany Geofabrik PBF through
+`shared/geofabrik.py`; there are no Overpass or OSM API requests. An automatic
+extract is reused for at most 24 hours, then deleted before downloading its
+replacement. `--pbf` selects an existing extract and `--bbox` filters its local
+display centres; both options can be combined. The default shared cache is
+`.cache/geofabrik`. Website HTTP results have a separate SQLite cache in that
+directory. A manual GitHub Actions workflow tests the source and generator and
 updates only this challenge's generated JSON; there is no scheduled run.
 
 ## Parking conversion comparison

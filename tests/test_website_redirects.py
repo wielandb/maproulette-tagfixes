@@ -217,15 +217,6 @@ class FakeChecker:
         pass
 
 
-class FakeOverpass:
-    def __init__(self, elements):
-        self.elements = elements
-        self.calls = []
-    def getElementsFromQuery(self, query):
-        self.calls.append(query)
-        return self.elements
-
-
 class GeneratorTests(unittest.TestCase):
     def element(self, osm_type="node", osm_id=1):
         item = {"type": osm_type, "id": osm_id, "tags": {"website": "http://a.example/", "contact:website": "http://a.example/", "name": "Laden", "addr:city": "Berlin"}}
@@ -235,11 +226,8 @@ class GeneratorTests(unittest.TestCase):
     def test_all_osm_types_combine_both_keys_and_deduplicate_http(self):
         elements = [self.element(osm_type, index) for index, osm_type in enumerate(("node", "way", "relation"), 1)]
         checker = FakeChecker()
-        overpass = FakeOverpass(elements)
-        challenge = generator.generate([generator.candidate(item) for item in elements], overpass, FakeCache(), checker)
+        challenge = generator.generate([generator.candidate(item) for item in elements], FakeCache(), checker)
         self.assertEqual(checker.calls, ["http://a.example/"])
-        self.assertEqual(len(overpass.calls), 1)
-        self.assertIn("relation(id:3)", overpass.calls[0])
         self.assertEqual(len(challenge.tasks), 3)
         for task in challenge.tasks:
             operations = task.cooperativeWork.to_dict()["operations"][0]["data"]["operations"]
@@ -296,7 +284,7 @@ class GeneratorTests(unittest.TestCase):
                     yield generator.candidate(elements[0])
                     raise AssertionError("Must stop before reading another candidate")
                 with patch.object(generator, "BATCH_SIZE", 1):
-                    challenge = generator.generate(candidates(), FakeOverpass(elements), FakeCache(), checker, challenge=mrcb.Challenge(**limits))
+                    challenge = generator.generate(candidates(), FakeCache(), checker, challenge=mrcb.Challenge(**limits))
                 self.assertTrue(challenge.limit_reached)
                 self.assertEqual(len(checker.calls), 1)
 
@@ -304,47 +292,74 @@ class GeneratorTests(unittest.TestCase):
         challenge = mrcb.Challenge(max_tasks=1)
         challenge.addTask(mrcb.Task(mrcb.GeoFeature([13, 52])))
         checker = FakeChecker()
-        generator.generate(iter(()), FakeOverpass([]), FakeCache(), checker, challenge=challenge)
+        generator.generate(iter(()), FakeCache(), checker, challenge=challenge)
         self.assertEqual(checker.calls, [])
 
     def test_main_preserves_previous_output_on_source_failure(self):
         with tempfile.TemporaryDirectory() as directory:
             output = Path(directory) / "existing.json"
             output.write_text("previous valid tasks", encoding="utf-8")
-            with patch.object(generator, "bbox_candidates", side_effect=RuntimeError("Overpass unavailable")):
+            with patch.object(generator, "pbf_candidates", side_effect=RuntimeError("PBF unavailable")):
                 with self.assertRaises(RuntimeError):
-                    generator.main(["--bbox", "52", "13", "53", "14", "--cache-dir", directory, "--output", str(output)])
+                    generator.main(["--pbf", str(Path(directory) / "missing.osm.pbf"), "--cache-dir", directory, "--output", str(output)])
             self.assertEqual(output.read_text(encoding="utf-8"), "previous valid tasks")
 
-    def test_pbf_candidate_scan_needs_no_geometry_or_network(self):
-        with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "fixture.osm"
-            path.write_text('<osm version="0.6"><node id="1" lat="52" lon="13"><tag k="website" v="https://a.example/"/></node><way id="2"><nd ref="1"/><tag k="contact:website" v="https://b.example/"/></way><relation id="3"><member type="way" ref="2" role="outer"/><tag k="website" v="https://c.example/"/></relation></osm>', encoding="utf-8")
-            with patch("requests.get", side_effect=AssertionError("No network during tag scan")):
-                candidates = list(generator.pbf_candidates(path))
-            self.assertEqual([(item["type"], item["id"]) for item in candidates], [("node", 1), ("way", 2), ("relation", 3)])
+    def make_pbf(self, path):
+        import osmium
+        header = osmium.io.Header()
+        header.set("osmosis_replication_timestamp", "2026-10-29T00:00:00Z")
+        with osmium.SimpleWriter(str(path), header=header) as writer:
+            writer.add_node(osmium.osm.mutable.Node(id=1, location=(13, 52), tags={"website": "http://a.example/"}))
+            writer.add_node(osmium.osm.mutable.Node(id=2, location=(15, 54)))
+            writer.add_way(osmium.osm.mutable.Way(id=10, nodes=[1, 2], tags={"website": "http://a.example/"}))
+            writer.add_relation(osmium.osm.mutable.Relation(id=20, members=[("w", 10, "outer")], tags={"contact:website": "http://a.example/"}))
 
-    def test_download_cache_expiration_and_failed_refresh_preserves_extract(self):
+    def test_pbf_candidate_scan_resolves_geometry_without_network(self):
         with tempfile.TemporaryDirectory() as directory:
-            path = Path(directory) / "germany-latest.osm.pbf"
-            path.write_bytes(b"old extract")
-            import os
-            os.utime(path, (100, 100))
-            calls = []
-            def get(*args, **kwargs):
-                calls.append(args)
-                return Response(content=b"new extract")
-            self.assertEqual(generator.download_germany(directory, now=lambda: 101, get=get), path)
-            self.assertEqual(calls, [])
-            generator.download_germany(directory, now=lambda: 100 + http.MAX_AGE, get=get)
-            self.assertEqual(path.read_bytes(), b"new extract")
-            os.utime(path, (100, 100))
-            def failure(*args, **kwargs):
-                return Response(503)
-            with self.assertRaises(requests.HTTPError):
-                generator.download_germany(directory, now=lambda: 100 + http.MAX_AGE, get=failure)
-            self.assertEqual(path.read_bytes(), b"new extract")
-            self.assertFalse(path.with_suffix(".pbf.part").exists())
+            path = Path(directory) / "fixture.osm.pbf"
+            self.make_pbf(path)
+            with patch("requests.get", side_effect=AssertionError("No network during PBF scan")), patch("requests.post", side_effect=AssertionError("No network during PBF scan")):
+                candidates = list(generator.pbf_candidates(path))
+            self.assertEqual([(item["type"], item["id"]) for item in candidates], [("node", 1), ("way", 10), ("relation", 20)])
+            self.assertEqual(candidates[-1]["element"]["center"], {"lat": 53, "lon": 14})
+
+    def test_main_combines_pbf_and_local_bbox_with_no_osm_network(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "fixture.osm.pbf"
+            output = Path(directory) / "tasks.json"
+            self.make_pbf(path)
+            with patch.object(generator, "RedirectChecker", return_value=FakeChecker()), patch.object(mrcb, "Overpass", side_effect=AssertionError("No Overpass")), patch("requests.post", side_effect=AssertionError("No OSM requests")):
+                challenge = generator.main(["--pbf", str(path), "--bbox", "51", "12", "55", "16", "--cache-dir", directory, "--output", str(output)])
+            self.assertEqual(len(challenge.tasks), 3)
+            self.assertEqual(challenge.tasks[-1].mainFeature.geometry, [14, 53])
+            for task in challenge.tasks:
+                self.assertIn("PBF-Stand", task.mainFeature.properties["task_instruction"])
+                self.assertIn("2026-10-29T00:00:00Z", task.mainFeature.properties["task_instruction"])
+                self.assertIn("aktuellen OSM-Tags", task.mainFeature.properties["task_instruction"])
+            self.assertTrue(output.exists())
+
+    def test_pbf_iterator_is_closed_on_limit(self):
+        closed = []
+        def source():
+            try:
+                yield generator.candidate(self.element())
+                raise AssertionError("No next source item after the limit")
+            finally:
+                closed.append(True)
+        with patch.object(generator, "BATCH_SIZE", 1):
+            challenge = generator.generate(source(), FakeCache(), FakeChecker(), challenge=mrcb.Challenge(max_tasks=1))
+        self.assertEqual(len(challenge.tasks), 1)
+        self.assertEqual(closed, [True])
+
+    def test_broken_pbf_preserves_previous_output(self):
+        with tempfile.TemporaryDirectory() as directory:
+            path = Path(directory) / "broken.osm.pbf"
+            output = Path(directory) / "tasks.json"
+            path.write_bytes(b"not an OSM PBF")
+            output.write_text("previous valid tasks", encoding="utf-8")
+            with self.assertRaises(RuntimeError):
+                generator.main(["--pbf", str(path), "--cache-dir", directory, "--output", str(output)])
+            self.assertEqual(output.read_text(encoding="utf-8"), "previous valid tasks")
 
 
 if __name__ == "__main__":
