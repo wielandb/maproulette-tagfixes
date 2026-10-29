@@ -1,0 +1,60 @@
+name: Update Website Redirect Challenge Data
+
+on:
+  workflow_dispatch:
+    inputs:
+      max_tasks:
+        description: Maximum number of tasks (1 to 50000)
+        type: number
+        default: 1000
+        required: true
+      bbox:
+        description: Optional SOUTH WEST NORTH EAST (otherwise Germany PBF)
+        type: string
+        default: ''
+        required: false
+
+permissions:
+  contents: write
+
+concurrency:
+  group: challenge-data-${{ github.ref }}
+  cancel-in-progress: false
+
+jobs:
+  update-website-redirects:
+    runs-on: ubuntu-latest
+    timeout-minutes: 360
+    steps:
+      - uses: actions/checkout@v7
+      - uses: actions/setup-python@v7
+        with:
+          python-version: '3.12'
+      - name: Install dependencies
+        run: python -m pip install -r requirements.txt
+      - name: Test website generator
+        run: python -m unittest discover -s tests -p test_website_redirects.py -v
+      - name: Generate real tasks
+        env:
+          MAX_TASKS: ${{ inputs.max_tasks }}
+          BBOX: ${{ inputs.bbox }}
+        run: |
+          python - <<'PY'
+          import os
+          import shlex
+          import subprocess
+          args = ["python", "challenges/website_redirects/generate.py", "--max-tasks", os.environ["MAX_TASKS"]]
+          if os.environ["BBOX"].strip():
+              args.extend(["--bbox", *shlex.split(os.environ["BBOX"])])
+          subprocess.run(args, check=True)
+          PY
+      - name: Commit only website challenge data
+        run: |
+          git config --local user.email "github-actions[bot]@users.noreply.github.com"
+          git config --local user.name "github-actions[bot]"
+          git add -- challenges/website_redirects/website_redirects.json
+          if ! git diff --staged --quiet; then
+            git commit -m "Update website redirect challenge data"
+            git pull --rebase origin "${GITHUB_REF_NAME}"
+            git push origin "HEAD:${GITHUB_REF_NAME}"
+          fi

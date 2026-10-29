@@ -4,3 +4,4 @@ tqdm
 shapely>=2
 -r challenges/stopsign-directions/requirements.txt
 -r challenges/imgur404/requirements.txt
+-r challenges/website_redirects/requirements.txt

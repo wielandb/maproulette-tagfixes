@@ -90,6 +90,18 @@ Run the offline regression tests with:
 .\.venv\Scripts\python.exe -m unittest discover -s tests -v
 ```
 
+## Website redirects
+
+The [website redirect generator](challenges/website_redirects/README.md) creates
+German TagFix tasks for permanent 301/308 redirects of `website` and
+`contact:website`. It includes HTTPS, www, slash and domain changes, with human
+review of the destination's identity. By default it downloads and caches a
+Germany PBF for up to 24 hours; `--pbf`, `--bbox`, `--cache-dir`, `--output` and
+`--max-tasks` support local extracts and smaller live runs. Website checks are
+deduplicated in a separate SQLite cache. Current tags and map positions are
+loaded only for confirmed redirect candidates. A manual GitHub Actions workflow
+updates only this challenge's generated JSON; there is no scheduled run.
+
 ## Parking conversion comparison
 
 Every newly generated parking task includes a Markdown comparison table with
