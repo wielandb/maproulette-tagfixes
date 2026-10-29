@@ -432,6 +432,10 @@ class _OverpassResponseError(ValueError):
         self.http_status = http_status
 
 
+class _OverpassStaleDataError(_OverpassResponseError):
+    """A mirror is too far behind to be useful again during this run."""
+
+
 class Overpass:
     # Global instances: https://wiki.openstreetmap.org/wiki/Overpass_API#Public_Overpass_API_instances
     DEFAULT_URLS = (
@@ -481,6 +485,7 @@ class Overpass:
         self.request_timeout = request_timeout
         self._area_resolvers = {}
         self._boundary_ways = {}
+        self._stale_urls = {}
 
     @staticmethod
     def _clean_message(message, max_chars=500):
@@ -515,7 +520,7 @@ class Overpass:
                     pass
                 else:
                     if osm_base.tzinfo is not None and datetime.now(timezone.utc) - osm_base > timedelta(days=7):
-                        raise _OverpassResponseError(f"Outdated Overpass data (OSM base {timestamp})")
+                        raise _OverpassStaleDataError(f"Outdated Overpass data (OSM base {timestamp})")
         if not isinstance(payload, dict) or not isinstance(payload.get("elements"), list) or any(
             not isinstance(element, dict) for element in payload["elements"]
         ):
@@ -664,11 +669,17 @@ class Overpass:
             raise _OverpassResponseError(f"Could not resolve area filter: {exc}") from exc
 
     def getElementsFromQuery(self, overpass_query):
-        # Start with the last successful server, then rotate on each failed attempt.
-        urls = (self.overpass_url,) + tuple(url for url in self.overpass_urls if url != self.overpass_url)
+        # Start with the last successful server, then rotate on transient failures.
+        # A stale database will not catch up during a retry delay. Remember it
+        # across batches so it cannot repeatedly consume the attempt budget.
+        preferred = (self.overpass_url,) + tuple(url for url in self.overpass_urls if url != self.overpass_url)
+        urls = [url for url in preferred if url not in self._stale_urls]
+        if not urls:
+            details = " | ".join(f"{url}: {reason}" for url, reason in self._stale_urls.items())
+            raise ValueError(f"No usable Overpass servers remain; all configured servers returned outdated data: {details}")
         errors = []
         for attempt in range(self.max_attempts):
-            url = urls[attempt % len(urls)]
+            url = urls.pop(0)
             status = None
             try:
                 prepared_query = self._prepare_query(url, overpass_query)
@@ -683,6 +694,10 @@ class Overpass:
                 if not exc.retryable:
                     raise ValueError(f"Overpass query failed on {url}: {exc}") from None
                 error = str(exc)
+                if isinstance(exc, _OverpassStaleDataError):
+                    self._stale_urls[url] = error
+                    self._area_resolvers.pop(url, None)
+                    print(f"Skipping {url} for the rest of this client run: {error}", file=sys.stderr)
             except requests.RequestException as exc:
                 error = self._clean_message(f"{type(exc).__name__}: {exc}")
             else:
@@ -690,15 +705,19 @@ class Overpass:
                 return elements
             errors.append(f"{url}: {error}")
             print(f"Overpass attempt {attempt + 1}/{self.max_attempts} failed on {url}: {error}", file=sys.stderr)
+            if url not in self._stale_urls:
+                urls.append(url)
+            if not urls:
+                break
             if attempt + 1 < self.max_attempts:
                 delay = min(self.retry_delay * 2 ** min(attempt, 10), 60)
                 # The primary instance's usage policy requires >=30s after 406/429.
                 if status in (406, 429):
                     delay = max(delay, 30)
-                next_url = urls[(attempt + 1) % len(urls)]
+                next_url = urls[0]
                 print(f"Retrying in {delay:g}s on {next_url}...", file=sys.stderr)
                 sleep(delay)
-        raise ValueError(f"Overpass request failed after {self.max_attempts} attempts: " + " | ".join(errors))
+        raise ValueError(f"Overpass request failed after {attempt + 1} attempts: " + " | ".join(errors))
 
 
 def _geometry_points(geometry):

@@ -2,6 +2,7 @@ import io
 import os
 import unittest
 from contextlib import redirect_stderr
+from datetime import datetime, timedelta, timezone
 from unittest.mock import Mock, call, patch
 
 import requests
@@ -20,6 +21,15 @@ def response(status=200, payload=None, body="test response"):
     result = Mock(status_code=status, text=body, headers={})
     result.json.return_value = {"elements": ELEMENTS} if payload is None else payload
     return result
+
+
+def stale_response():
+    return response(payload={
+        "osm3s": {
+            "timestamp_osm_base": (datetime.now(timezone.utc) - timedelta(days=30)).isoformat(),
+        },
+        "elements": [{"type": "node", "id": 999}],
+    })
 
 
 class OverpassFailoverTests(unittest.TestCase):
@@ -173,6 +183,86 @@ class OverpassFailoverTests(unittest.TestCase):
         self.post.return_value = response()
         self.assertEqual(self.client(overpass_urls=(FIRST_URL,)).getElementsFromQuery(QUERY), ELEMENTS)
         self.assertEqual(self.called_urls(), [FIRST_URL])
+
+
+    def test_stale_server_is_skipped_within_the_same_retry_budget(self):
+        self.post.side_effect = [
+            stale_response(), response(502), response(504), response(),
+        ]
+
+        self.assertEqual(self.client(max_attempts=4).getElementsFromQuery(QUERY), ELEMENTS)
+
+        self.assertEqual(self.called_urls(), [FIRST_URL, SECOND_URL, SECOND_URL, SECOND_URL])
+        self.assertEqual(self.sleep.call_args_list, [call(5), call(10), call(20)])
+
+    def test_stale_servers_do_not_consume_later_context_batch_retries(self):
+        # Reproduce the failed weekly run: two mirrors are months behind,
+        # while the remaining servers intermittently return 502/504.
+        fourth_url = "https://fourth.example.invalid/api/interpreter"
+        client = self.client(overpass_urls=[FIRST_URL, SECOND_URL, THIRD_URL, fourth_url])
+        self.post.side_effect = [
+            stale_response(), response(502), stale_response(), response(),
+        ]
+        self.assertEqual(client.getElementsFromQuery(QUERY), ELEMENTS)
+        self.assertEqual(self.called_urls(), [FIRST_URL, SECOND_URL, THIRD_URL, fourth_url])
+
+        self.post.reset_mock()
+        self.sleep.reset_mock()
+        self.post.side_effect = [
+            response(504), response(502), response(504), response(502), response(504), response(),
+        ]
+        self.assertEqual(client.getElementsFromQuery("next context batch"), ELEMENTS)
+        self.assertEqual(self.called_urls(), [fourth_url, SECOND_URL] * 3)
+        self.assertEqual(self.sleep.call_args_list, [call(5), call(10), call(20), call(40), call(60)])
+
+    def test_all_stale_servers_fail_early_without_sleeping_after_the_last_attempt(self):
+        client = self.client()
+        self.post.side_effect = [stale_response(), stale_response()]
+
+        with self.assertRaisesRegex(ValueError, "failed after 2 attempts") as failure:
+            client.getElementsFromQuery(QUERY)
+
+        self.assertEqual(self.called_urls(), [FIRST_URL, SECOND_URL])
+        self.sleep.assert_called_once_with(5)
+        self.assertIn(FIRST_URL, str(failure.exception))
+        self.assertIn(SECOND_URL, str(failure.exception))
+        self.assertIn("Outdated Overpass data", str(failure.exception))
+
+        self.post.reset_mock()
+        self.sleep.reset_mock()
+        with self.assertRaisesRegex(ValueError, "all configured servers returned outdated data"):
+            client.getElementsFromQuery("next query")
+        self.post.assert_not_called()
+        self.sleep.assert_not_called()
+
+    def test_single_stale_server_does_not_retry_itself(self):
+        self.post.return_value = stale_response()
+        with self.assertRaisesRegex(ValueError, "failed after 1 attempts"):
+            self.client(overpass_urls=[FIRST_URL]).getElementsFromQuery(QUERY)
+        self.assertEqual(self.called_urls(), [FIRST_URL])
+        self.sleep.assert_not_called()
+
+    def test_preferred_server_is_removed_if_it_later_becomes_stale(self):
+        client = self.client()
+        self.post.side_effect = [response(), stale_response(), response()]
+        self.assertEqual(client.getElementsFromQuery(QUERY), ELEMENTS)
+        self.assertEqual(client.getElementsFromQuery("second query"), ELEMENTS)
+        self.assertEqual(self.called_urls(), [FIRST_URL, FIRST_URL, SECOND_URL])
+        self.assertEqual(client.overpass_url, SECOND_URL)
+
+        self.post.reset_mock()
+        self.post.side_effect = [response(502), response()]
+        self.assertEqual(client.getElementsFromQuery("third query"), ELEMENTS)
+        self.assertEqual(self.called_urls(), [SECOND_URL, SECOND_URL])
+
+    def test_fresh_client_reconsiders_previously_stale_servers(self):
+        self.post.side_effect = [stale_response(), response(), response()]
+        first_client = self.client()
+        self.assertEqual(first_client.getElementsFromQuery(QUERY), ELEMENTS)
+
+        self.assertEqual(self.client().getElementsFromQuery(QUERY), ELEMENTS)
+
+        self.assertEqual(self.called_urls(), [FIRST_URL, SECOND_URL, FIRST_URL])
 
     def test_invalid_configuration_is_rejected_before_requesting(self):
         for options in (
