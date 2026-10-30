@@ -135,29 +135,47 @@ Generator und committet nur die eigene Aufgaben-JSON. Die optionale Bounding
 Box ist ein lokaler PBF-Filter. Der Workflow hat keinen Zeitplan.
 `update_all_challenges.bat` enthält den Generator ebenfalls.
 
-## Echter Deutschland-PBF-Probelauf vom 29.10.2026
+## Echter Deutschlandlauf vom 30.10.2026
 
-Die versionierte `website_redirects.json` stammt aus einem erfolgreichen echten
-CLI-Lauf (Exitstatus **0**) mit dem vollständig heruntergeladenen Geofabrik-
-Deutschland-Extrakt (**4.871.369.043 Byte**, PBF-Datenstand
-**2026-10-28T21:21:02Z**). Die lokale Dresden-BBox war
-`50.95 13.60 51.12 13.90`, das Aufgabenlimit 20.
+Die versionierte `website_redirects.json` stammt aus dem erfolgreichen normalen
+Deutschlandlauf mit Exitstatus **0**, **ohne `--bbox` und ohne `--max-tasks`**.
+Er lief am 30.10.2026 von **06:06:49 bis 07:57:43 UTC** mit dem vollständig
+heruntergeladenen Geofabrik-Deutschland-Extrakt (**4.871.369.043 Byte**,
+PBF-Datenstand **2026-10-28T21:21:02Z**). Der automatische PBF-Cache war noch
+keine 24 Stunden alt; auch gültige Ergebnisse des separaten HTTP-Caches wurden
+wiederverwendet. Der Lauf verwendete nur `--cache-dir` und `--output` als
+CLI-Optionen, entsprechend folgendem Aufruf mit lokalen Cache-/Ausgabepfaden:
 
 ```powershell
-python challenges/website_redirects/generate.py --cache-dir .venv/geofabrik-cache --bbox 50.95 13.60 51.12 13.90 --max-tasks 20
+python challenges/website_redirects/generate.py --cache-dir .venv/geofabrik-cache --output .venv/live-challenges/website_germany.json
 ```
 
-Der Generator prüfte **128 PBF-Kandidaten** und erzeugte **20 Aufgaben**.
-Kandidaten, Tags und Kartenpositionen kamen ausschließlich aus demselben PBF;
-HTTP-Abrufe dienten ausschließlich der Website-Prüfung. Es gab weder Overpass-
-noch OSM-API-Abfragen und keine gemockten Eingaben. Nodes wurden im ersten
-Lesedurchgang ausgegeben; das Aufgabenlimit beendete den PBF-Iterator sauber.
-Die JSON-Sequenz wurde auf eindeutige Objekt-IDs, gültige Koordinaten innerhalb
-der BBox, PBF-Datenstand und TagFix-Operationen geprüft.
+Der Generator verarbeitete **835.015 PBF-Kandidaten** und erzeugte
+**9.501 Aufgaben**: **8.690 Nodes, 799 Ways und 12 Relationen**. Darin werden
+**5.698 `website`-Werte und 3.855 `contact:website`-Werte** vorgeschlagen;
+52 Aufgaben bündeln beide Schlüssel. Der Lauf endete nach vollständigem
+Durchlauf. Keine der normalen Grenzen von 50.000 Aufgaben / 99.000.000 Byte
+wurde erreicht. Die Windows-CLI-Ausgabe umfasst **19.153.497 Byte**;
+nach der üblichen LF-Normalisierung in Git sind es **19.143.996 Byte**.
 
-Die Treffer sind technisch bestätigte Weiterleitungen. Ihre inhaltliche
-Zuordnung bleibt Teil der Aufgabe: Beispielsweise zeigte das Ziel der
-16. Grundschule Josephine den Seitentitel „Turystyka“. Dieser auffällige
-Treffer muss inhaltlich geprüft und gegebenenfalls abgelehnt werden; eine
-permanente Weiterleitung allein bestätigt keine Schulwebsite. Die Datei ist
-eine begrenzte Datenprobe und kein Deutschland-Gesamtexport.
+Im ersten PBF-Pass wurden 539.359 Nodes ausgegeben und 296.821 Way-/Relations-
+Kandidaten gesammelt. Die lokale Referenzauflösung las 1.710.175 benötigte
+Way-Referenzen und 16.405.908 Node-Koordinaten. **1.165 Kandidaten** wurden wegen
+fehlender Referenzen oder anderer unvollständig auflösbarer Geometrien mit
+Diagnose übersprungen. Kandidaten, Tags und Kartenpositionen kamen
+ausschließlich aus demselben PBF. HTTP-Abrufe dienten der Website-Prüfung;
+es gab keine Overpass- oder OSM-API-Abfragen und keine gemockten Eingaben.
+
+Die **gesamte JSON-Sequenz** wurde auf eindeutige OSM- und Aufgaben-IDs,
+endliche gültige Koordinaten, PBF-Quelle und Datenstand sowie die exakten
+TagFix-Operationen geprüft. Jede vorgeschlagene URL wurde mit den gespeicherten
+HTTP-Nachweisen abgeglichen: unveränderte Ausgangs-URL, ausschließlich 301/308,
+konsistente Kette zum vorgeschlagenen Ziel, abschließender Status 200 und
+Prüfzeit innerhalb der Cache-Gültigkeit. Die Daten umfassen Deutschland und
+gegebenenfalls Randobjekte des Geofabrik-Extrakts. Ihre inhaltliche Prüfung
+bleibt Teil jeder MapRoulette-Aufgabe.
+
+Der Lauf verwendet den mit **326 bestandenen Offline-Tests** geprüften
+UTF-8-Fallback für unbekannte Charset-Namen wie `utf-8mb4` (Commit `c487f9a`).
+Die vollständigen Daten ersetzen die frühere Dresden-Stichprobe. Die
+Veröffentlichung verändert nur Aufgaben-JSON und Dokumentation.
