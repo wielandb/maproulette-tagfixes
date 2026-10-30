@@ -82,6 +82,37 @@ class HTTPTests(unittest.TestCase):
         self.assertEqual(http.resolve_location("https://a.example/p#alt", "/neu#"), "https://a.example/neu")
         self.assertEqual(http.resolve_location("https://a.example/p#alt", "/neu#anders"), "https://a.example/neu#anders")
 
+    def test_unknown_title_encoding_falls_back_without_losing_redirect(self):
+        for encoding, content, title in (
+            ("utf-8mb4", "<title>  Café &amp;\n Bistro  </title>".encode("utf-8"), "Café & Bistro"),
+            ("unknown-charset", b"<title>Caf\xff</title>", "Caf\ufffd"),
+        ):
+            with self.subTest(encoding=encoding):
+                response = Response(content=content)
+                response.encoding = encoding
+                responses = [Response(301, "/neu"), Response(308, "https://neu.example/"), response]
+                result, calls, checker = self.check("http://alt.example/", responses)
+                self.assertTrue(result.eligible)
+                self.assertEqual(result.target, "https://neu.example/")
+                self.assertEqual([hop["status"] for hop in result.hops], [301, 308])
+                self.assertEqual(result.title, title)
+                self.assertEqual(result.checked_at, 100)
+                self.assertEqual(checker.conclusive, 1)
+                self.assertEqual(len(calls), 3)
+                self.assertTrue(all(item.closed for item in responses))
+
+    def test_supported_title_encoding_is_respected_and_missing_defaults_to_utf8(self):
+        for encoding, content in (
+            ("iso-8859-1", "<title>Café</title>".encode("iso-8859-1")),
+            (None, "<title>Café</title>".encode("utf-8")),
+        ):
+            with self.subTest(encoding=encoding):
+                response = Response(content=content)
+                response.encoding = encoding
+                result, _, _ = self.check("http://alt.example/", [Response(301, "/neu"), response])
+                self.assertTrue(result.eligible)
+                self.assertEqual(result.title, "Café")
+
     def test_all_cosmetic_redirects_are_retained(self):
         for before, after in (("http://a.example/", "https://a.example/"),
                               ("https://a.example/", "https://www.a.example/"),

@@ -200,7 +200,12 @@ class RedirectChecker:
                             match = re.search(br"<title[^>]*>(.*?)</title\s*>", data, re.I | re.S)
                             if match:
                                 import html
-                                result.title = html.unescape(re.sub(r"\s+", " ", match[1].decode(response.encoding or "utf-8", errors="replace"))).strip()[:200]
+                                try:
+                                    title = match[1].decode(response.encoding or "utf-8", errors="replace")
+                                except LookupError:
+                                    # Unknown server charset labels must not abort a confirmed redirect.
+                                    title = match[1].decode("utf-8", errors="replace")
+                                result.title = html.unescape(re.sub(r"\s+", " ", title)).strip()[:200]
                         return result
                     if status not in (301, 308):
                         result.reason = "temporary_redirect" if status in (302, 303, 307) else "http_" + str(status)

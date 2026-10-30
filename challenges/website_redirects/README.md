@@ -63,6 +63,11 @@ nicht überschrieben werden. Betreiber und Standort müssen weiterhin passen;
 Domainparking, Anmeldeseiten, fremde Geschäfte oder eine ungeeignete
 Konzernstartseite sind Gründe, den Vorschlag nicht zu übernehmen.
 
+Bei unbekannten Zeichensatzangaben wie `utf-8mb4` wird der optionale Seitentitel
+mit UTF-8 gelesen; ungültige Bytes werden durch Ersatzzeichen dargestellt.
+Dadurch bleibt eine bestätigte Weiterleitung auch bei falschen Charset-Namen
+des Webservers auswertbar.
+
 Die HTTP-Bedeutung ist in [RFC 9110, 301](https://www.rfc-editor.org/rfc/rfc9110.html#name-301-moved-permanently),
 [308](https://www.rfc-editor.org/rfc/rfc9110.html#name-308-permanent-redirect)
 und [Location/Fragmente](https://www.rfc-editor.org/rfc/rfc9110.html#name-location)
